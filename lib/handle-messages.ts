@@ -136,141 +136,76 @@ export async function handleNewAssistantMessage(
         
         console.log(`Created canvas for research result with ID: ${canvasId}`);
       } else {
-        // Canvas creation not available, fall back to splitting messages
-        console.log("Canvas creation not available, falling back to splitting messages");
-        sendSplitMessages(channel, thread_ts, result);
+        // Canvas creation not available, truncate the message
+        console.log("Canvas creation not available, truncating message");
+        const truncatedResult = result.substring(0, SLACK_CHAR_LIMIT - 100) + 
+          "\n\n[Message truncated due to length. Canvas creation not available.]";
+        
+        await client.chat.postMessage({
+          channel: channel,
+          thread_ts: thread_ts,
+          text: truncatedResult,
+          unfurl_links: false,
+          blocks: [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: truncatedResult,
+              },
+            },
+          ],
+        });
       }
     } catch (error) {
       console.error("Error creating canvas:", error);
       
-      // Fall back to splitting messages if canvas creation fails
-      console.log("Falling back to splitting messages...");
-      sendSplitMessages(channel, thread_ts, result);
-    }
-  } else {
-    // For regular messages within the character limit, send as a single message
-    if (result.length <= SLACK_CHAR_LIMIT) {
+      // Truncate the message if canvas creation fails
+      console.log("Truncating message due to canvas creation failure");
+      const truncatedResult = result.substring(0, SLACK_CHAR_LIMIT - 100) + 
+        "\n\n[Message truncated due to length. Canvas creation failed.]";
+      
       await client.chat.postMessage({
         channel: channel,
         thread_ts: thread_ts,
-        text: result,
+        text: truncatedResult,
         unfurl_links: false,
         blocks: [
           {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: result,
+              text: truncatedResult,
             },
           },
         ],
       });
-    } else {
-      // For long messages that aren't research results, split them
-      sendSplitMessages(channel, thread_ts, result);
     }
-  }
-
-  updateStatus("");
-}
-
-/**
- * Sends a long message split into multiple messages
- */
-async function sendSplitMessages(channel: string, thread_ts: string, text: string) {
-  const SLACK_CHAR_LIMIT = 3000;
-  
-  // Find natural break points (paragraphs, sentences) to split the text
-  const chunks = splitTextIntoChunks(text, SLACK_CHAR_LIMIT);
-  
-  console.log(`Splitting message into ${chunks.length} chunks`);
-  
-  // Send each chunk as a separate message
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    const isFirstChunk = i === 0;
-    const prefix = isFirstChunk ? "" : `(continued ${i+1}/${chunks.length}):\n\n`;
+  } else {
+    // For regular messages, send as a single message
+    // If it's too long, truncate it
+    let messageText = result;
+    if (result.length > SLACK_CHAR_LIMIT) {
+      messageText = result.substring(0, SLACK_CHAR_LIMIT - 100) + 
+        "\n\n[Message truncated due to length. Consider using research queries for longer responses.]";
+    }
     
     await client.chat.postMessage({
       channel: channel,
       thread_ts: thread_ts,
-      text: prefix + chunk,
+      text: messageText,
       unfurl_links: false,
       blocks: [
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: prefix + chunk,
+            text: messageText,
           },
         },
       ],
     });
   }
-}
 
-/**
- * Splits text into chunks that respect Slack's character limit
- * Tries to split at natural break points like paragraphs or sentences
- */
-function splitTextIntoChunks(text: string, maxChunkSize: number): string[] {
-  const chunks: string[] = [];
-  let remainingText = text;
-  
-  while (remainingText.length > 0) {
-    // If remaining text fits in a chunk, add it and we're done
-    if (remainingText.length <= maxChunkSize) {
-      chunks.push(remainingText);
-      break;
-    }
-    
-    // Try to find a natural break point within the limit
-    let breakPoint = findBreakPoint(remainingText, maxChunkSize);
-    
-    // Extract the chunk and update remaining text
-    const chunk = remainingText.substring(0, breakPoint).trim();
-    chunks.push(chunk);
-    remainingText = remainingText.substring(breakPoint).trim();
-  }
-  
-  return chunks;
-}
-
-/**
- * Finds a natural break point in text within the specified limit
- * Prioritizes paragraph breaks, then sentence breaks, then word breaks
- */
-function findBreakPoint(text: string, limit: number): number {
-  // If text is shorter than limit, return its length
-  if (text.length <= limit) {
-    return text.length;
-  }
-  
-  // Look for paragraph breaks (double newline)
-  const lastParagraphBreak = text.lastIndexOf("\n\n", limit);
-  if (lastParagraphBreak > 0) {
-    return lastParagraphBreak + 2; // Include the newlines
-  }
-  
-  // Look for single newlines
-  const lastNewline = text.lastIndexOf("\n", limit);
-  if (lastNewline > 0) {
-    return lastNewline + 1; // Include the newline
-  }
-  
-  // Look for sentence breaks (.!?)
-  for (let i = limit; i > 0; i--) {
-    if (['.', '!', '?'].includes(text[i]) && (i === text.length - 1 || text[i + 1] === ' ' || text[i + 1] === '\n')) {
-      return i + 1; // Include the punctuation
-    }
-  }
-  
-  // Fall back to word breaks
-  const lastSpace = text.lastIndexOf(" ", limit);
-  if (lastSpace > 0) {
-    return lastSpace + 1; // Include the space
-  }
-  
-  // If no good break point found, just cut at the limit
-  return limit;
+  updateStatus("");
 }
