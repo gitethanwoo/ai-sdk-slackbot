@@ -1,5 +1,8 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import { generateText, generateObject } from 'ai';
+import { perplexity } from '@ai-sdk/perplexity';
+import { openai } from '@ai-sdk/openai';
 
 /**
  * Helper function to deduplicate results by domain and URL
@@ -19,30 +22,6 @@ function deduplicateByDomainAndUrl<T extends { url: string }>(items: T[]): T[] {
       return true;
     }
   });
-}
-
-/**
- * Helper function to validate image URLs
- */
-async function isValidImageUrl(url: string): Promise<boolean> {
-  try {
-    const response = await fetch(url, { method: 'HEAD' });
-    const contentType = response.headers.get('content-type');
-    return response.ok && contentType ? contentType.startsWith('image/') : false;
-  } catch (e) {
-    return false;
-  }
-}
-
-/**
- * Helper function to sanitize URLs
- */
-function sanitizeUrl(url: string): string {
-  try {
-    return new URL(url).toString();
-  } catch (e) {
-    return url;
-  }
 }
 
 /**
@@ -109,55 +88,80 @@ export const webScrape = tool({
  * Searches the web for information and returns results in a format optimized for LLMs
  */
 export const jinaSearch = tool({
-  description: 'Search the web for information using Jina AI Search API with support for multiple queries',
+  description: 'Search the web for information by generating multiple related queries from your question',
   parameters: z.object({
-    queries: z.array(z.string()).describe('Array of search queries to look up on the web'),
-    options: z.array(z.enum(['Default', 'Markdown', 'HTML', 'Text']).default('Markdown'))
-      .describe('Array of format options for each query result').optional(),
-    sites: z.array(z.string().optional())
-      .describe('Array of domains to limit search results for each query').optional(),
-    maxResults: z.array(z.number().default(5))
-      .describe('Array of maximum number of results to return per query').optional(),
-    withLinks: z.boolean().default(true)
-      .describe('Whether to include links in the response'),
-    withImages: z.boolean().default(false)
-      .describe('Whether to include images in the response'),
-    exclude_domains: z.array(z.string())
-      .describe('A list of domains to exclude from all search results')
-      .default([]),
+    query: z.string().describe('The search query or question to research'),
   }),
-  execute: async ({ 
-    queries, 
-    options = [], 
-    sites = [], 
-    maxResults = [], 
-    withLinks, 
-    withImages, 
-    exclude_domains 
-  }: { 
-    queries: string[], 
-    options?: ('Default' | 'Markdown' | 'HTML' | 'Text')[], 
-    sites?: (string | undefined)[], 
-    maxResults?: number[],
-    withLinks: boolean,
-    withImages: boolean,
-    exclude_domains: string[]
-  }) => {
+  execute: async ({ query }: { query: string }) => {
     try {
-      // Get your Jina AI API key for free: https://jina.ai/?sui=apikey
+      console.log('Original query:', query);
+      
+      // Check if JINA_API_KEY is set
       const apiKey = process.env.JINA_API_KEY;
       if (!apiKey) {
         throw new Error('JINA_API_KEY environment variable is not set');
       }
 
-      console.log('Queries:', queries);
-      console.log('Options:', options);
-      console.log('Sites:', sites);
-      console.log('Max Results:', maxResults);
-      console.log('Exclude Domains:', exclude_domains);
+      // Step 1: Generate 5 related search queries using OpenAI's o3-mini
+      console.log('Generating related search queries...');
+      
+      // Get current date and time for context
+      const currentDate = new Date().toISOString().split('T')[0];
+      const currentTime = new Date().toTimeString().split(' ')[0];
+      console.log(`Current date: ${currentDate}, time: ${currentTime}`);
+      
+      // Define the schema for our query generation
+      const querySchema = z.object({
+        queries: z.array(z.string()).describe('Five specific search queries related to the original question')
+      });
+      
+      type QueryResult = { queries: string[] };
+      
+      // Use generateObject to get structured data directly
+      const { object } = await generateObject<QueryResult>({
+        model: openai('o3-mini', { structuredOutputs: true }),
+        schema: querySchema,
+        system: `You are a search query generator. Given a user's question, generate 5 specific search queries that would help answer the question comprehensively. 
+        Today's date is ${currentDate} and the current time is ${currentTime}.
+        
+        IMPORTANT: Focus on generating queries that will find the MOST RECENT information available. 
+        Include the current year (${currentDate.split('-')[0]}) in at least 3 of your queries to ensure fresh results.
+        For example, if searching about technology trends, include "${currentDate.split('-')[0]} technology trends" rather than just "technology trends".`,
+        messages: [
+          {
+            role: 'user',
+            content: `Generate 5 specific search queries to help answer this question with the MOST RECENT information available: "${query}"`
+          }
+        ],
+        temperature: 0.8,
+      });
+      
+      console.log('Generated queries:', object.queries);
+      
+      // If no queries were generated, use fallbacks
+      let searchQueries: string[] = object.queries;
+      if (!searchQueries || searchQueries.length === 0) {
+        console.log('No queries generated, using fallbacks');
+        searchQueries = [
+          query,
+          `${query} best practices`,
+          `${query} examples`,
+          `${query} tutorial`,
+          `${query} latest developments`
+        ];
+      }
+
+      // Execute searches in parallel and collect all results
+      const allSearchResults: Array<{
+        query: string;
+        url: string;
+        title: string;
+        description: string;
+        source: string;
+      }> = [];
 
       // Execute searches in parallel
-      const searchPromises = queries.map(async (query, index) => {
+      const searchPromises = searchQueries.map(async (searchQuery: string) => {
         try {
           const headers: Record<string, string> = {
             'Authorization': `Bearer ${apiKey}`,
@@ -165,40 +169,26 @@ export const jinaSearch = tool({
             'Accept': 'application/json',
           };
 
-          // Add optional headers
-          const site = sites[index] || sites[0];
-          if (site) {
-            headers['X-Site'] = site;
-          }
-          if (withLinks) {
-            headers['X-With-Links-Summary'] = 'true';
-          }
-          if (withImages) {
-            headers['X-With-Images-Summary'] = 'true';
-          }
-          
-          // Set the max results using X-Token-Budget header (approximate)
-          const resultLimit = maxResults[index] || maxResults[0] || 5;
-          // Rough estimate: 1000 tokens per result
-          headers['X-Token-Budget'] = String(resultLimit * 1000);
+          // Set token budget for approximately 15 results with metadata per query
+          headers['X-Token-Budget'] = '7500';
+          // Request metadata only initially
+          headers['X-Respond-With'] = 'no-content';
 
           const response = await fetch('https://s.jina.ai/', {
             method: 'POST',
             headers,
             body: JSON.stringify({ 
-              q: query,
-              options: options[index] || options[0] || 'Markdown'
+              q: searchQuery,
+              options: 'Markdown'
             })
           });
 
           if (!response.ok) {
-            console.warn(`Query "${query}" failed with status: ${response.status} ${response.statusText}`);
+            console.warn(`Query "${searchQuery}" failed with status: ${response.status} ${response.statusText}`);
             return {
-              query,
+              query: searchQuery,
               results: [],
-              images: [],
               resultCount: 0,
-              imageCount: 0,
               error: `Search failed: ${response.statusText}`
             };
           }
@@ -206,102 +196,226 @@ export const jinaSearch = tool({
           const data = await response.json();
           
           if (data.code !== 200) {
-            console.warn(`Query "${query}" failed with code: ${data.code} ${data.status}`);
+            console.warn(`Query "${searchQuery}" failed with code: ${data.code} ${data.status}`);
             return {
-              query,
+              query: searchQuery,
               results: [],
-              images: [],
               resultCount: 0,
-              imageCount: 0,
               error: `Search failed: ${data.status}`
             };
           }
 
-          // Limit results based on maxResults parameter
-          const limitedResults = data.data.slice(0, resultLimit);
-
-          // Process and deduplicate results
-          const processedResults = deduplicateByDomainAndUrl(limitedResults).map((result: any) => ({
+          // Get up to 15 results per query
+          const searchResults = data.data.slice(0, 15);
+          
+          // Process and deduplicate results (metadata only at this stage)
+          const processedMetadata = deduplicateByDomainAndUrl(searchResults).map((result: any) => ({
             url: result.url,
             title: result.title,
             description: result.description || '',
-            content: result.content,
-            links: result.links || {},
-            images: result.images || {},
           }));
-
-          // Process images if available and requested
-          let processedImages: any[] = [];
-          if (withImages && data.data.some((r: any) => r.images && Object.keys(r.images).length > 0)) {
-            const allImages: { url: string; description?: string }[] = [];
-            
-            // Collect all images from all results
-            data.data.forEach((result: any) => {
-              if (result.images) {
-                Object.entries(result.images).forEach(([alt, url]: [string, any]) => {
-                  allImages.push({ url: String(url), description: alt });
-                });
-              }
+          
+          // Add these results to our collection with the source query
+          processedMetadata.forEach(result => {
+            allSearchResults.push({
+              ...result,
+              query: searchQuery,
+              source: `Query: "${searchQuery}"`
             });
-            
-            // Deduplicate and validate images
-            processedImages = await Promise.all(
-              deduplicateByDomainAndUrl(allImages).map(
-                async ({ url, description }: { url: string; description?: string }) => {
-                  const sanitizedUrl = sanitizeUrl(url);
-                  const isValid = await isValidImageUrl(sanitizedUrl);
-                  return isValid
-                    ? {
-                        url: sanitizedUrl,
-                        description: description || '',
-                      }
-                    : null;
-                }
-              )
-            ).then((results) =>
-              results.filter(
-                (image): image is { url: string; description: string } =>
-                  image !== null &&
-                  typeof image === 'object' &&
-                  typeof image.url === 'string'
-              )
-            );
-          }
-
+          });
+          
           return {
-            query,
-            results: processedResults,
-            images: processedImages,
-            resultCount: processedResults.length,
-            imageCount: processedImages.length
+            query: searchQuery,
+            metadataResults: processedMetadata,
+            resultCount: processedMetadata.length
           };
         } catch (error: unknown) {
-          console.error(`Error processing query "${query}":`, error);
+          console.error(`Error processing query "${searchQuery}":`, error);
           const errorMessage = error instanceof Error ? error.message : String(error);
           return {
-            query,
-            results: [],
-            images: [],
+            query: searchQuery,
+            metadataResults: [],
             resultCount: 0,
-            imageCount: 0,
             error: errorMessage
           };
         }
       });
 
-      const searchResults = await Promise.all(searchPromises);
+      await Promise.all(searchPromises);
       
-      // Check if all searches failed
-      const allFailed = searchResults.every(result => result.error);
-      if (allFailed) {
-        throw new Error("All search queries failed: " + searchResults.map(r => r.error).join(", "));
-      }
+      console.log(`Collected ${allSearchResults.length} total results across all queries`);
+      
+      // If we have results, use LLM to select the most promising ones
+      if (allSearchResults.length > 0) {
+        console.log(`Using LLM to select top results from ${allSearchResults.length} total results...`);
+        
+        // Define schema for result selection
+        const selectionSchema = z.object({
+          selectedIndices: z.array(z.number()).describe('Indices of the most relevant results (0-based)')
+        });
+        
+        type SelectionResult = { selectedIndices: number[] };
+        
+        // Use LLM to select the most promising results
+        const { object: selectionResult } = await generateObject<SelectionResult>({
+          model: openai('o3-mini', { structuredOutputs: true }),
+          schema: selectionSchema,
+          system: `You are a search result curator. Given a query and a list of search results (title, description, URL), 
+          select the most relevant results that would best answer the query. Return the indices (0-based) of the selected results.
+          Today's date is ${currentDate} and the current time is ${currentTime}.
+          
+          Select results that:
+          1. Are most relevant to the original query
+          2. Provide comprehensive information
+          3. Are from reputable sources
+          4. Are THE MOST RECENT available - strongly prefer content from ${currentDate.split('-')[0]} when available
+          5. Represent diverse perspectives on the topic
+          
+          Select up to 5 results total.`,
+          messages: [
+            {
+              role: 'user',
+              content: `Original query: "${query}"
+              
+Search results:
+${allSearchResults.map((result, i) => 
+  `[${i}] ${result.title}
+  Description: ${result.description}
+  URL: ${result.url}
+  ${result.source}`
+).join('\n\n')}
 
-      return {
-        searches: searchResults,
-      };
+Select the most relevant results by returning their indices (0-based). Choose up to 5 results total.`
+            }
+          ],
+          temperature: 0.3,
+        });
+        
+        // Get the selected indices, ensuring we have at most 5
+        const selectedIndices = selectionResult.selectedIndices.slice(0, 5);
+        console.log(`Selected indices: ${selectedIndices.join(', ')}`);
+        
+        // Now fetch full content for only the selected results
+        const contentPromises = selectedIndices.map(async (index) => {
+          const result = allSearchResults[index];
+          
+          // Fetch the full content for this URL
+          const contentResponse = await fetch('https://r.jina.ai/', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              // Add header to request the most recent version of the page
+              'X-Prefer-Recent': 'true',
+            },
+            body: JSON.stringify({ url: result.url })
+          });
+          
+          if (!contentResponse.ok) {
+            console.warn(`Failed to fetch content for ${result.url}: ${contentResponse.statusText}`);
+            return {
+              ...result,
+              content: `Failed to fetch content: ${contentResponse.statusText}`
+            };
+          }
+          
+          const contentData = await contentResponse.json();
+          
+          if (contentData.code !== 200) {
+            console.warn(`Failed to fetch content for ${result.url}: ${contentData.status}`);
+            return {
+              ...result,
+              content: `Failed to fetch content: ${contentData.status}`
+            };
+          }
+          
+          // Truncate content to reduce token usage (first 500 words)
+          const content = contentData.data.content?.split(/\s+/).slice(0, 1500).join(' ') + '...' || '';
+          
+          return {
+            ...result,
+            content
+          };
+        });
+        
+        const resultsWithContent = await Promise.all(contentPromises);
+        
+        return {
+          originalQuery: query,
+          searchDate: currentDate,
+          searchTime: currentTime,
+          searches: searchQueries,
+          results: resultsWithContent,
+          resultCount: resultsWithContent.length
+        };
+      } else {
+        // No results found across all queries
+        return {
+          originalQuery: query,
+          searchDate: currentDate,
+          searchTime: currentTime,
+          searches: searchQueries,
+          results: [],
+          resultCount: 0,
+          error: "No search results found across all queries"
+        };
+      }
     } catch (error: unknown) {
       console.error('Error searching:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { error: errorMessage };
+    }
+  }
+});
+
+/**
+ * Deep Research tool using Perplexity's sonar-deep-research model
+ * Conducts comprehensive, expert-level research and synthesizes it into detailed reports
+ */
+export const deepResearch = tool({
+  description: 'Conduct comprehensive research on a topic using Perplexity\'s sonar-deep-research model',
+  parameters: z.object({
+    query: z.string().describe('The research question or topic to investigate in detail'),
+  }),
+  execute: async ({ 
+    query
+  }: { 
+    query: string, 
+  }) => {
+    try {
+      console.log('Conducting deep research on:', query);
+      
+      // Check if PERPLEXITY_API_KEY is set
+      const apiKey = process.env.PERPLEXITY_API_KEY;
+      if (!apiKey) {
+        throw new Error('PERPLEXITY_API_KEY environment variable is not set');
+      }
+
+      // Use a balanced system prompt for comprehensive research
+      const systemPrompt = `You are an expert researcher tasked with conducting comprehensive research on the given topic. 
+      Perform exhaustive research, analyze the information critically, and synthesize your findings into a well-structured report.
+      Include relevant facts, figures, expert opinions, and proper citations to sources.
+      Present a balanced view that considers multiple perspectives and provides actionable insights.`;
+
+      // Generate comprehensive research using Perplexity's sonar-deep-research model
+      const { text } = await generateText({
+        model: perplexity('sonar-deep-research'),
+        system: systemPrompt,
+        messages: [
+          {
+            role: 'user',
+            content: query
+          }
+        ],
+      });
+
+      return {
+        research: text,
+        query
+      };
+    } catch (error: unknown) {
+      console.error('Error conducting deep research:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { error: errorMessage };
     }
@@ -314,6 +428,7 @@ export const jinaSearch = tool({
 export const tools = {
   webScrape,
   jinaSearch,
+  deepResearch,
   // Add more tools here as needed
 };
 

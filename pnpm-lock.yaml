@@ -11,6 +11,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^1.2.2
         version: 1.2.2(zod@3.24.2)
+      '@ai-sdk/perplexity':
+        specifier: ^1.0.5
+        version: 1.0.5(zod@3.24.2)
       '@slack/web-api':
         specifier: ^7.0.2
         version: 7.8.0
@@ -39,8 +42,23 @@ packages:
     peerDependencies:
       zod: ^3.0.0
 
+  '@ai-sdk/perplexity@1.0.5':
+    resolution: {integrity: sha512-Z0RcIPRIDPkfK6hEYpor9kv3kIZ9RMdkapWMipa8uxnISxKJljL78Js0sxHn8lvZ667hZ2ju3jI1x/4Q//Um3w==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.0.0
+
   '@ai-sdk/provider-utils@2.1.11':
     resolution: {integrity: sha512-lMnXA5KaRJidzW7gQmlo/SnX6D+AKk5GxHFcQtOaGOSJNmu/qcNZc1rGaO7K5qW52OvCLXtnWudR4cc/FvMpVQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
+
+  '@ai-sdk/provider-utils@2.1.12':
+    resolution: {integrity: sha512-NLm2Ypkv419jR5TNOvZ057ciSYFKzSDEIIwE8cRyeR1Y5RbuX+auZveqGg6GWsDzvUnn6Xra7BJmr0422v60UA==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.0.0
@@ -318,7 +336,22 @@ snapshots:
       '@ai-sdk/provider-utils': 2.1.11(zod@3.24.2)
       zod: 3.24.2
 
+  '@ai-sdk/perplexity@1.0.5(zod@3.24.2)':
+    dependencies:
+      '@ai-sdk/provider': 1.0.10
+      '@ai-sdk/provider-utils': 2.1.12(zod@3.24.2)
+      zod: 3.24.2
+
   '@ai-sdk/provider-utils@2.1.11(zod@3.24.2)':
+    dependencies:
+      '@ai-sdk/provider': 1.0.10
+      eventsource-parser: 3.0.0
+      nanoid: 3.3.8
+      secure-json-parse: 2.7.0
+    optionalDependencies:
+      zod: 3.24.2
+
+  '@ai-sdk/provider-utils@2.1.12(zod@3.24.2)':
     dependencies:
       '@ai-sdk/provider': 1.0.10
       eventsource-parser: 3.0.0
