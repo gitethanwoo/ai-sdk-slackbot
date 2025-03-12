@@ -57,143 +57,25 @@ export async function handleNewAssistantMessage(
   const messages = await getThread(channel, thread_ts, botUserId);
   const result = await generateResponse(messages, updateStatus);
 
-  // Slack has a 3000 character limit for a single text block
-  const SLACK_CHAR_LIMIT = 3000;
+  // Slack has a 40,000 character limit for the overall message text
+  const SLACK_TEXT_LIMIT = 40000;
   
-  // Check if this is likely a deep research result (long text)
-  const isLongResearchResult = result.length > SLACK_CHAR_LIMIT && 
-    (result.includes("research") || messages.some(m => m.content.toString().includes("research")));
+  // Handle message length - truncate if necessary
+  let messageText = result;
+  if (result.length > SLACK_TEXT_LIMIT) {
+    messageText = result.substring(0, SLACK_TEXT_LIMIT - 100) + 
+      "\n\n[Message truncated due to length. Consider breaking your query into smaller parts.]";
+  }
   
-  if (isLongResearchResult) {
-    try {
-      // Check if canvas creation is available by checking if the canvases API exists
-      // and if the bot has the necessary permissions
-      let canvasCreationAvailable = false;
-      
-      try {
-        // Try to check if we have canvas permissions
-        if (client.canvases) {
-          // Just check if the API is available, don't actually create a canvas yet
-          console.log("Canvas API is available, will attempt to use it");
-          canvasCreationAvailable = true;
-        }
-      } catch (e) {
-        console.log("Canvas API not available:", e);
-        canvasCreationAvailable = false;
-      }
-      
-      if (canvasCreationAvailable) {
-        // Create a canvas for the research result
-        updateStatus("is preparing research canvas...");
-        
-        // Extract a title from the first few lines of the result
-        const firstLineBreak = result.indexOf('\n');
-        const potentialTitle = firstLineBreak > 0 
-          ? result.substring(0, Math.min(firstLineBreak, 100)).trim() 
-          : "Research Report";
-        
-        const title = potentialTitle.replace(/^#+\s*/, ''); // Remove markdown heading symbols if present
-        
-        // Create the canvas with the research content
-        const canvasResponse = await client.canvases.create({
-          title: title,
-          document_content: {
-            type: "markdown",
-            markdown: result
-          }
-        });
-        
-        if (!canvasResponse.ok) {
-          throw new Error(`Failed to create canvas: ${canvasResponse.error}`);
-        }
-        
-        const canvasId = canvasResponse.canvas_id;
-        
-        // Send a message with a link to the canvas
-        // Slack will automatically unfurl the canvas when shared in a message
-        await client.chat.postMessage({
-          channel: channel,
-          thread_ts: thread_ts,
-          text: `I've prepared a detailed research report for you. View the full report here: <https://slack.com/docs/canvas/${canvasId}|${title}>`,
-          unfurl_links: true,
-          blocks: [
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: `I've prepared a detailed research report for you. View the full report here: <https://slack.com/docs/canvas/${canvasId}|${title}>`
-              }
-            },
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: `*Summary:* ${result.substring(0, Math.min(200, result.length))}...`
-              }
-            }
-          ]
-        });
-        
-        console.log(`Created canvas for research result with ID: ${canvasId}`);
-      } else {
-        // Canvas creation not available, truncate the message
-        console.log("Canvas creation not available, truncating message");
-        const truncatedResult = result.substring(0, SLACK_CHAR_LIMIT - 100) + 
-          "\n\n[Message truncated due to length. Canvas creation not available.]";
-        
-        await client.chat.postMessage({
-          channel: channel,
-          thread_ts: thread_ts,
-          text: truncatedResult,
-          unfurl_links: false,
-          blocks: [
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: truncatedResult,
-              },
-            },
-          ],
-        });
-      }
-    } catch (error) {
-      console.error("Error creating canvas:", error);
-      
-      // Truncate the message if canvas creation fails
-      console.log("Truncating message due to canvas creation failure");
-      const truncatedResult = result.substring(0, SLACK_CHAR_LIMIT - 100) + 
-        "\n\n[Message truncated due to length. Canvas creation failed.]";
-      
-      await client.chat.postMessage({
-        channel: channel,
-        thread_ts: thread_ts,
-        text: truncatedResult,
-        unfurl_links: false,
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: truncatedResult,
-            },
-          },
-        ],
-      });
-    }
-  } else {
-    // For regular messages, send as a single message
-    // If it's too long, truncate it
-    let messageText = result;
-    if (result.length > SLACK_CHAR_LIMIT) {
-      messageText = result.substring(0, SLACK_CHAR_LIMIT - 100) + 
-        "\n\n[Message truncated due to length. Consider using research queries for longer responses.]";
-    }
-    
+  // For messages that need markdown formatting but are under the block limit
+  const SLACK_BLOCK_LIMIT = 3000;
+  
+  if (messageText.length <= SLACK_BLOCK_LIMIT) {
+    // For shorter messages, use blocks for better formatting
     await client.chat.postMessage({
       channel: channel,
       thread_ts: thread_ts,
-      text: messageText,
+      text: messageText, // Fallback text
       unfurl_links: false,
       blocks: [
         {
@@ -201,9 +83,18 @@ export async function handleNewAssistantMessage(
           text: {
             type: "mrkdwn",
             text: messageText,
-          },
+          }
         },
       ],
+    });
+  } else {
+    // For longer messages, just use the text field directly
+    await client.chat.postMessage({
+      channel: channel,
+      thread_ts: thread_ts,
+      text: messageText,
+      unfurl_links: false,
+      // No blocks for longer messages
     });
   }
 
