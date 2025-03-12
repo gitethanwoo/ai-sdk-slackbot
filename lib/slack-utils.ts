@@ -69,6 +69,57 @@ export const updateStatusUtil = (channel: string, thread_ts: string) => {
   };
 };
 
+/**
+ * Extract canvas IDs from Slack message links
+ * Looks for canvas links in Slack messages
+ */
+export function extractCanvasIdFromLink(link: string): string | null {
+  // Simple regex to extract canvas ID from Slack links
+  // This handles both formats:
+  // - https://workspace.slack.com/docs/team/F12345
+  // - https://slack.com/docs/canvas/F12345
+  const match = link.match(/\/docs\/(?:[^\/]+\/|canvas\/)([A-Z0-9]+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Retrieve canvas content using the files.list API with canvas type filter
+ */
+export async function getCanvasContent(canvasId: string): Promise<string | null> {
+  try {
+    // Use files.list with canvas type filter as recommended in the documentation
+    const response = await client.files.list({
+      types: "canvas",
+    });
+    
+    if (!response.ok || !response.files) {
+      console.log("Failed to retrieve canvas list");
+      return null;
+    }
+    
+    // Find the specific canvas by ID
+    const canvas = response.files.find(file => file.id === canvasId);
+    
+    if (!canvas) {
+      console.log(`Canvas with ID ${canvasId} not found`);
+      return null;
+    }
+    
+    // Get the canvas content from the preview field
+    if (canvas.preview) {
+      return canvas.preview;
+    } else if (canvas.permalink) {
+      return `Canvas content available at: ${canvas.permalink}`;
+    } else {
+      console.log(`No preview content available for canvas ${canvasId}`);
+      return null;
+    }
+  } catch (error) {
+    console.log(`Error retrieving canvas content: ${error}`);
+    return null;
+  }
+}
+
 export async function getThread(
   channel_id: string,
   thread_ts: string,
@@ -81,27 +132,55 @@ export async function getThread(
   });
 
   // Ensure we have messages
-
   if (!messages) throw new Error("No messages found in thread");
 
-  const result = messages
-    .map((message) => {
-      const isBot = !!message.bot_id;
-      if (!message.text) return null;
+  const result: CoreMessage[] = [];
+  
+  // Process each message
+  for (const message of messages) {
+    const isBot = !!message.bot_id;
+    if (!message.text) continue;
 
-      // For app mentions, remove the mention prefix
-      // For IM messages, keep the full text
-      let content = message.text;
-      if (!isBot && content.includes(`<@${botUserId}>`)) {
-        content = content.replace(`<@${botUserId}> `, "");
+    // For app mentions, remove the mention prefix
+    // For IM messages, keep the full text
+    let content = message.text;
+    if (!isBot && content.includes(`<@${botUserId}>`)) {
+      content = content.replace(`<@${botUserId}> `, "");
+    }
+    
+    // Check for canvas links in the message
+    // Slack formats links as <url|text>
+    const linkMatches = content.match(/<(https?:\/\/[^|>]+)(?:\|[^>]+)?>/g);
+    
+    if (linkMatches) {
+      for (const linkMatch of linkMatches) {
+        // Extract the actual URL from the Slack link format
+        const url = linkMatch.match(/<(https?:\/\/[^|>]+)(?:\|[^>]+)?>/)?.[1];
+        
+        if (url && (url.includes('/docs/') || url.includes('/canvas/'))) {
+          const canvasId = extractCanvasIdFromLink(url);
+          
+          if (canvasId) {
+            console.log(`Found canvas link with ID: ${canvasId}`);
+            
+            // Get canvas content using the dedicated function
+            const canvasContent = await getCanvasContent(canvasId);
+            
+            if (canvasContent) {
+              // Add the canvas content to the message
+              content += `\n\n--- Canvas Content ---\n${canvasContent}\n--- End Canvas Content ---`;
+              console.log(`Added canvas content for ID: ${canvasId}`);
+            }
+          }
+        }
       }
+    }
 
-      return {
-        role: isBot ? "assistant" : "user",
-        content: content,
-      } as CoreMessage;
-    })
-    .filter((msg): msg is CoreMessage => msg !== null);
+    result.push({
+      role: isBot ? "assistant" : "user",
+      content: content,
+    });
+  }
 
   return result;
 }
