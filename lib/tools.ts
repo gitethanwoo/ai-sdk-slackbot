@@ -33,14 +33,26 @@ export const webScrape = tool({
   parameters: z.object({
     url: z.string().url().describe('The URL of the webpage to scrape'),
   }),
-  execute: async ({ url }: { url: string }) => {
+  execute: async ({ url }: { url: string }, options?: { updateStatus?: (status: string) => void }) => {
     try {
+      const updateStatus = options?.updateStatus;
+      
+      if (updateStatus) {
+        updateStatus("is connecting to the webpage...");
+        console.log("Status updated to 'is connecting to the webpage...'");
+      }
+      
       // Get your Jina AI API key for free: https://jina.ai/?sui=apikey
       const apiKey = process.env.JINA_API_KEY;
       if (!apiKey) {
         throw new Error('JINA_API_KEY environment variable is not set');
       }
 
+      if (updateStatus) {
+        updateStatus("is fetching webpage content...");
+        console.log("Status updated to 'is fetching webpage content...'");
+      }
+      
       const response = await fetch('https://r.jina.ai/', {
         method: 'POST',
         headers: {
@@ -57,6 +69,11 @@ export const webScrape = tool({
         throw new Error(`Failed to scrape webpage: ${response.statusText}`);
       }
 
+      if (updateStatus) {
+        updateStatus("is processing webpage data...");
+        console.log("Status updated to 'is processing webpage data...'");
+      }
+      
       const data = await response.json();
       
       if (data.code !== 200) {
@@ -65,6 +82,11 @@ export const webScrape = tool({
 
       // Extract the content from the response
       const { title, description, content, links, images } = data.data;
+      
+      if (updateStatus) {
+        updateStatus("is extracting relevant information...");
+        console.log("Status updated to 'is extracting relevant information...'");
+      }
       
       // Format the response
       return {
@@ -92,8 +114,9 @@ export const jinaSearch = tool({
   parameters: z.object({
     query: z.string().describe('The search query or question to research'),
   }),
-  execute: async ({ query }: { query: string }) => {
+  execute: async ({ query }: { query: string }, options?: { updateStatus?: (status: string) => void }) => {
     try {
+      const updateStatus = options?.updateStatus;
       console.log('Original query:', query);
       
       // Check if JINA_API_KEY is set
@@ -103,6 +126,11 @@ export const jinaSearch = tool({
       }
 
       // Step 1: Generate 5 related search queries using OpenAI's o3-mini
+      if (updateStatus) {
+        updateStatus("is generating search queries...");
+        console.log("Status updated to 'is generating search queries...'");
+      }
+      
       console.log('Generating related search queries...');
       
       // Get current date and time for context
@@ -152,6 +180,11 @@ export const jinaSearch = tool({
       }
 
       // Execute searches in parallel and collect all results
+      if (updateStatus) {
+        updateStatus("is executing web searches...");
+        console.log("Status updated to 'is executing web searches...'");
+      }
+      
       const allSearchResults: Array<{
         query: string;
         url: string;
@@ -247,6 +280,11 @@ export const jinaSearch = tool({
       
       // If we have results, use LLM to select the most promising ones
       if (allSearchResults.length > 0) {
+        if (updateStatus) {
+          updateStatus("is selecting the most relevant results...");
+          console.log("Status updated to 'is selecting the most relevant results...'");
+        }
+        
         console.log(`Using LLM to select top results from ${allSearchResults.length} total results...`);
         
         // Define schema for result selection
@@ -296,6 +334,11 @@ Select the most relevant results by returning their indices (0-based). Choose up
         console.log(`Selected indices: ${selectedIndices.join(', ')}`);
         
         // Now fetch full content for only the selected results
+        if (updateStatus) {
+          updateStatus("is retrieving full content for selected results...");
+          console.log("Status updated to 'is retrieving full content for selected results...'");
+        }
+        
         const contentPromises = selectedIndices.map(async (index) => {
           const result = allSearchResults[index];
           
@@ -341,6 +384,11 @@ Select the most relevant results by returning their indices (0-based). Choose up
         
         const resultsWithContent = await Promise.all(contentPromises);
         
+        if (updateStatus) {
+          updateStatus("is compiling search results...");
+          console.log("Status updated to 'is compiling search results...'");
+        }
+        
         return {
           originalQuery: query,
           searchDate: currentDate,
@@ -382,9 +430,15 @@ export const deepResearch = tool({
     query
   }: { 
     query: string, 
-  }) => {
+  }, options?: { updateStatus?: (status: string) => void }) => {
     try {
+      const updateStatus = options?.updateStatus;
       console.log('Conducting deep research on:', query);
+      
+      if (updateStatus) {
+        updateStatus("is preparing research parameters...");
+        console.log("Status updated to 'is preparing research parameters...'");
+      }
       
       // Check if PERPLEXITY_API_KEY is set
       const apiKey = process.env.PERPLEXITY_API_KEY;
@@ -398,6 +452,11 @@ export const deepResearch = tool({
       Include relevant facts, figures, expert opinions, and proper citations to sources.
       Present a balanced view that considers multiple perspectives and provides actionable insights.`;
 
+      if (updateStatus) {
+        updateStatus("is conducting comprehensive research...");
+        console.log("Status updated to 'is conducting comprehensive research...'");
+      }
+      
       // Generate comprehensive research using Perplexity's sonar-deep-research model
       const { text } = await generateText({
         model: perplexity('sonar-deep-research'),
@@ -410,6 +469,11 @@ export const deepResearch = tool({
         ],
       });
 
+      if (updateStatus) {
+        updateStatus("is finalizing research report...");
+        console.log("Status updated to 'is finalizing research report...'");
+      }
+      
       return {
         research: text,
         query

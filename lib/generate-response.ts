@@ -1,6 +1,6 @@
 import { openai } from '@ai-sdk/openai';
 import { CoreMessage, generateText } from 'ai';
-import { tools as originalTools } from './tools';
+import { tools } from './tools';
 
 export const generateResponse = async (
   messages: CoreMessage[],
@@ -14,60 +14,30 @@ export const generateResponse = async (
       console.log("Status updated to 'Processing your request...'");
     }
     
-    // Create wrapped tools that update status when they start executing
-    const wrappedTools = Object.entries(originalTools).reduce((acc, [name, tool]) => {
-      const originalExecute = tool.execute;
-      
-      // Only wrap if we have an updateStatus function
-      if (updateStatus && originalExecute) {
-        const wrappedExecute = async (args: any, options?: any) => {
-          // Update status based on which tool is being used
-          switch (name) {
-            case 'webScrape':
-              updateStatus("is scraping a webpage...");
-              console.log("Status updated to 'is scraping a webpage...'");
-              break;
-            case 'jinaSearch':
-              updateStatus("is searching the web...");
-              console.log("Status updated to 'is searching the web...'");
-              break;
-            case 'deepResearch':
-              updateStatus("is conducting deep research...");
-              console.log("Status updated to 'is conducting deep research...'");
-              break;
-            default:
-              updateStatus(`is using ${name}...`);
-              console.log(`Status updated to 'is using ${name}...'`);
-          }
-          
-          // Call the original execute function
-          const result = await originalExecute(args, options);
-          
-          // Update status when tool execution is complete
-          updateStatus("is analyzing results...");
-          console.log("Status updated to 'is analyzing results...'");
-          
-          return result;
-        };
+    // Create enhanced versions of the tools with the updateStatus function
+    const enhancedTools = Object.fromEntries(
+      Object.entries(tools).map(([name, tool]) => {
+        // If we don't have updateStatus, just return the original tool
+        if (!updateStatus) return [name, tool];
         
-        // Create a new tool with the wrapped execute function
-        return {
-          ...acc,
-          [name]: {
+        // Create a new tool with the same properties but with options.updateStatus
+        return [
+          name,
+          {
             ...tool,
-            execute: wrappedExecute,
-          },
-        };
-      }
-      
-      // If no updateStatus or no execute, just use the original tool
-      return {
-        ...acc,
-        [name]: tool,
-      };
-    }, {});
+            execute: async (args: any, options: any = {}) => {
+              // Call the original execute with the updateStatus function
+              return tool.execute(args, { 
+                ...options, 
+                updateStatus 
+              });
+            }
+          }
+        ];
+      })
+    );
     
-    const { text, steps } = await generateText({
+    const { text } = await generateText({
       model: openai('gpt-4o'), //this is fine - do not change. this is a new spec not in the docs yet
       system: `You are a helpful Slack bot assistant. Keep your responses concise and to the point. Before doing deep research, you should ask clarifying questions. 
 
@@ -111,7 +81,7 @@ RESPONSE FORMATTING:
 Remember to maintain a helpful, professional tone while being conversational and engaging.`,
       messages,
       maxSteps: 10,
-      tools: wrappedTools,
+      tools: enhancedTools,
       onStepFinish({ toolResults }) {
         // When all tool results are in, update status to indicate we're finalizing the response
         if (updateStatus && toolResults && toolResults.length > 0) {
