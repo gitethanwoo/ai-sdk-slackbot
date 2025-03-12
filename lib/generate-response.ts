@@ -79,7 +79,7 @@ RESPONSE FORMATTING:
 
 Remember to maintain a helpful, professional tone while being conversational and engaging.`,
       messages,
-      maxSteps: 10,
+      maxSteps: 4,
       tools: enhancedTools,
       providerOptions: {
         anthropic: {
