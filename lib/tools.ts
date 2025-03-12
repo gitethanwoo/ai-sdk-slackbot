@@ -166,18 +166,8 @@ export const jinaSearch = tool({
       
       console.log('Generated queries:', object.queries);
       
-      // If no queries were generated, use fallbacks
-      let searchQueries: string[] = object.queries;
-      if (!searchQueries || searchQueries.length === 0) {
-        console.log('No queries generated, using fallbacks');
-        searchQueries = [
-          query,
-          `${query} best practices`,
-          `${query} examples`,
-          `${query} tutorial`,
-          `${query} latest developments`
-        ];
-      }
+      // Use the generated queries directly
+      const searchQueries: string[] = object.queries;
 
       // Execute searches in parallel and collect all results
       if (updateStatus) {

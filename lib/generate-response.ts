@@ -1,4 +1,4 @@
-import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic'
 import { CoreMessage, generateText } from 'ai';
 import { tools } from './tools';
 
@@ -37,9 +37,9 @@ export const generateResponse = async (
       })
     );
     
-    const { text } = await generateText({
-      model: openai('gpt-4o'), //this is fine - do not change. this is a new spec not in the docs yet
-      system: `You are a helpful Slack bot assistant. Keep your responses concise and to the point. Before doing deep research, you should ask clarifying questions. 
+    const { text, reasoning } = await generateText({
+      model: anthropic('claude-3-7-sonnet-20250219'), // Updated to newer model with reasoning support
+      system: `You are a helpful Research Assistant that lives in Slack. You are thorough, detailed, and helpful. You are also conversational and engaging, making sure to ask clarifying questions when needed. 
 
 CURRENT DATE: ${new Date().toISOString().split('T')[0]}
 
@@ -67,21 +67,25 @@ TOOL SELECTION GUIDELINES:
 - For simple questions you can answer directly, don't use any tools
 - For factual questions about current events or recent information, use jinaSearch
 - For questions about specific websites or articles, use webScrape
-- For complex questions requiring in-depth analysis, use deepResearch
+- For complex questions requiring in-depth analysis, use deepResearch. Because you work at a tech company, lots of your research might be around software, tools, or even engineering documentation. It's best practice to ask a user if they want you to do deep research or just a quick search.
 - When uncertain about information accuracy or recency, use jinaSearch to verify
-- Only use one tool per response unless absolutely necessary
+- It's okay to use multiple tools in a single response if needed! For instance, if more information could help a user, perhaps you can use the webScrape tool to get more information on a particular page. 
 
 RESPONSE FORMATTING:
 - Keep responses concise and focused
 - Format lists with bullet points
 - Do not tag users
 - Always include sources when using web search tools
-- Convert markdown links to Slack format in your final response
 
 Remember to maintain a helpful, professional tone while being conversational and engaging.`,
       messages,
       maxSteps: 10,
       tools: enhancedTools,
+      providerOptions: {
+        anthropic: {
+          thinking: { type: 'enabled', budgetTokens: 12000 },
+        },
+      },
       onStepFinish({ toolResults }) {
         // When all tool results are in, update status to indicate we're finalizing the response
         if (updateStatus && toolResults && toolResults.length > 0) {
@@ -90,6 +94,11 @@ Remember to maintain a helpful, professional tone while being conversational and
         }
       }
     });
+    
+    // Log the reasoning for debugging purposes
+    if (reasoning) {
+      console.log("Model reasoning:", reasoning);
+    }
     
     // Convert markdown to Slack mrkdwn format
     const formattedText = text.replace(/\[(.*?)\]\((.*?)\)/g, '<$2|$1>').replace(/\*\*/g, '*');
