@@ -1,6 +1,6 @@
 import { openai } from '@ai-sdk/openai';
 import { CoreMessage, generateText } from 'ai';
-import { tools } from './tools';
+import { tools as originalTools } from './tools';
 
 export const generateResponse = async (
   messages: CoreMessage[],
@@ -10,13 +10,66 @@ export const generateResponse = async (
     console.log("Starting response generation");
     
     if (updateStatus) {
-       updateStatus("Processing your request...");
+       updateStatus("is thinking...");
       console.log("Status updated to 'Processing your request...'");
     }
     
-    const { text } = await generateText({
+    // Create wrapped tools that update status when they start executing
+    const wrappedTools = Object.entries(originalTools).reduce((acc, [name, tool]) => {
+      const originalExecute = tool.execute;
+      
+      // Only wrap if we have an updateStatus function
+      if (updateStatus && originalExecute) {
+        const wrappedExecute = async (args: any, options?: any) => {
+          // Update status based on which tool is being used
+          switch (name) {
+            case 'webScrape':
+              updateStatus("is scraping a webpage...");
+              console.log("Status updated to 'is scraping a webpage...'");
+              break;
+            case 'jinaSearch':
+              updateStatus("is searching the web...");
+              console.log("Status updated to 'is searching the web...'");
+              break;
+            case 'deepResearch':
+              updateStatus("is conducting deep research...");
+              console.log("Status updated to 'is conducting deep research...'");
+              break;
+            default:
+              updateStatus(`is using ${name}...`);
+              console.log(`Status updated to 'is using ${name}...'`);
+          }
+          
+          // Call the original execute function
+          const result = await originalExecute(args, options);
+          
+          // Update status when tool execution is complete
+          updateStatus("is analyzing results...");
+          console.log("Status updated to 'is analyzing results...'");
+          
+          return result;
+        };
+        
+        // Create a new tool with the wrapped execute function
+        return {
+          ...acc,
+          [name]: {
+            ...tool,
+            execute: wrappedExecute,
+          },
+        };
+      }
+      
+      // If no updateStatus or no execute, just use the original tool
+      return {
+        ...acc,
+        [name]: tool,
+      };
+    }, {});
+    
+    const { text, steps } = await generateText({
       model: openai('gpt-4o'), //this is fine - do not change. this is a new spec not in the docs yet
-      system: `You are a helpful Slack bot assistant. Keep your responses concise and to the point.
+      system: `You are a helpful Slack bot assistant. Keep your responses concise and to the point. Before doing deep research, you should ask clarifying questions. 
 
 CURRENT DATE: ${new Date().toISOString().split('T')[0]}
 
@@ -58,7 +111,14 @@ RESPONSE FORMATTING:
 Remember to maintain a helpful, professional tone while being conversational and engaging.`,
       messages,
       maxSteps: 10,
-      tools,
+      tools: wrappedTools,
+      onStepFinish({ toolResults }) {
+        // When all tool results are in, update status to indicate we're finalizing the response
+        if (updateStatus && toolResults && toolResults.length > 0) {
+          updateStatus("is finalizing response...");
+          console.log("Status updated to 'is finalizing response...'");
+        }
+      }
     });
     
     // Convert markdown to Slack mrkdwn format
