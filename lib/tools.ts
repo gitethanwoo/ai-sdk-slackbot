@@ -147,7 +147,7 @@ export const jinaSearch = tool({
       
       // Use generateObject to get structured data directly
       const { object } = await generateObject<QueryResult>({
-        model: openai('o3-mini', { structuredOutputs: true }),
+        model: openai('gpt-4o', { structuredOutputs: true }),
         schema: querySchema,
         system: `You are a search query generator. Given a user's question, generate 5 specific search queries that would help answer the question comprehensively. 
         Today's date is ${currentDate} and the current time is ${currentTime}.
@@ -286,7 +286,7 @@ export const jinaSearch = tool({
         
         // Use LLM to select the most promising results
         const { object: selectionResult } = await generateObject<SelectionResult>({
-          model: openai('o3-mini', { structuredOutputs: true }),
+          model: openai('gpt-4o-mini', { structuredOutputs: true }),
           schema: selectionSchema,
           system: `You are a search result curator. Given a query and a list of search results (title, description, URL), 
           select the most relevant results that would best answer the query. Return the indices (0-based) of the selected results.
