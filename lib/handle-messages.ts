@@ -23,12 +23,16 @@ export async function assistantThreadMessage(
     thread_ts: thread_ts,
     prompts: [
       {
-        title: "Get the weather",
-        message: "What is the current weather in London?",
+        title: "Search the web",
+        message: "What are the latest developments in AI technology in 2024?",
       },
       {
-        title: "Get the news",
-        message: "What is the latest Premier League news from the BBC?",
+        title: "Scrape a webpage",
+        message: "What are the strengths and weaknesses of our landing page? https://www.servant.io",
+      },
+      {
+        title: "Research a topic",
+        message: "Ask me clarifying questions to research this query: Conduct a comprehensive research on the market size for AI consultants in 2025.",
       },
     ],
   });
