@@ -485,7 +485,7 @@ export const slackCanvas = tool({
   parameters: z.object({
     channelId: z.string().describe('The ID of the Slack channel where the canvas will be created'),
     markdown: z.string().describe('The markdown content to add to the canvas'),
-    title: z.string().describe('The title for the canvas'),
+    title: z.string().optional().describe('The title for the canvas (optional)'),
   }),
   execute: async ({ 
     channelId, 
@@ -516,21 +516,21 @@ export const slackCanvas = tool({
         console.log("Status updated to 'is creating Slack canvas...'");
       }
       
-      // Prepare the request body
-      const documentContent = {
-        type: "markdown",
-        markdown: markdown
-      };
-      
-      // Add title if provided
+      // Prepare the request body exactly as expected by Slack API
       const requestBody: any = {
         channel_id: channelId,
-        document_content: documentContent
+        document_content: {
+          type: "markdown",
+          markdown: markdown
+        }
       };
       
+      // Add title if provided (title appears to be optional in the API)
       if (title) {
         requestBody.title = title;
       }
+      
+      console.log('Request body:', JSON.stringify(requestBody, null, 2));
       
       // Send the request to Slack API
       const response = await fetch('https://slack.com/api/conversations.canvases.create', {
@@ -542,13 +542,10 @@ export const slackCanvas = tool({
         body: JSON.stringify(requestBody)
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to create Slack canvas: ${response.statusText}`);
-      }
-
       const data = await response.json();
       
       if (!data.ok) {
+        console.error('Slack API response:', data);
         throw new Error(`Slack API error: ${data.error}`);
       }
 
