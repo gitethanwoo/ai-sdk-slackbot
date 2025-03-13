@@ -58,8 +58,15 @@ export async function handleNewAssistantMessage(
   const updateStatus = updateStatusUtil(channel, thread_ts);
   updateStatus("is thinking...");
 
+  // Create context with channel information
+  const context = {
+    channelId: channel,
+    threadTs: thread_ts
+  };
+  console.log("Assistant message context:", context);
+
   const messages = await getThread(channel, thread_ts, botUserId);
-  const result = await generateResponse(messages, updateStatus);
+  const result = await generateResponse(messages, updateStatus, context);
 
   // Slack has a 40,000 character limit for the overall message text
   const SLACK_TEXT_LIMIT = 40000;

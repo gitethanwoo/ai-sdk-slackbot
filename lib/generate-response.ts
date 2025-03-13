@@ -6,6 +6,7 @@ import { openai } from '@ai-sdk/openai';
 export const generateResponse = async (
   messages: CoreMessage[],
   updateStatus?: (status: string) => void,
+  context?: { channelId?: string; threadTs?: string }
 ) => {
   try {
     console.log("Starting response generation");
@@ -21,22 +22,25 @@ export const generateResponse = async (
         // If we don't have updateStatus, just return the original tool
         if (!updateStatus) return [name, tool];
         
-        // Create a new tool with the same properties but with options.updateStatus
+        // Create a new tool with the same properties but with options.updateStatus and context
         return [
           name,
           {
             ...tool,
             execute: async (args: any, options: any = {}) => {
-              // Call the original execute with the updateStatus function
+              // Call the original execute with the updateStatus function and context
               return tool.execute(args, { 
                 ...options, 
-                updateStatus 
+                updateStatus,
+                context  // Pass the channel context to tools
               });
             }
           }
         ];
       })
     );
+    
+    console.log("Context being passed to tools:", context);
     
     const { text } = await generateText({
       model: openai('o3-mini'),

@@ -500,8 +500,13 @@ export const slackCanvas = tool({
       const updateStatus = options?.updateStatus;
       const context = options?.context || {};
       
+      console.log('slackCanvas called with parameters:', { channelId, title });
+      console.log('slackCanvas context received:', context);
+      
       // Get channel ID from parameter or context
       const targetChannelId = channelId || context.channelId || context.slackChannelId;
+      
+      console.log('Final channel ID determined to be:', targetChannelId);
       
       // Simple validation - must have a channel ID
       if (!targetChannelId) {

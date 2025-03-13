@@ -96,7 +96,7 @@ export async function handleNewAppMention(
       console.log(`Thread history retrieved: ${messages.length} messages`);
       
       console.log("Generating response for thread");
-      const result = await generateResponse(messages, updateMessage);
+      const result = await generateResponse(messages, updateMessage, context);
       console.log("Response generated, updating Slack message");
       
       const updateResult = await updateMessage(result);
@@ -106,6 +106,7 @@ export async function handleNewAppMention(
       const result = await generateResponse(
         [{ role: "user", content: event.text }],
         updateMessage,
+        context
       );
       console.log("Response generated, updating Slack message");
       
