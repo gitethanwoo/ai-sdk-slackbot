@@ -6,7 +6,6 @@ import { openai } from '@ai-sdk/openai';
 export const generateResponse = async (
   messages: CoreMessage[],
   updateStatus?: (status: string) => void,
-  channelId?: string,
 ) => {
   try {
     console.log("Starting response generation");
@@ -28,11 +27,6 @@ export const generateResponse = async (
           {
             ...tool,
             execute: async (args: any, options: any = {}) => {
-              // If this is the slackCanvas tool and we have a channelId, use it as the default
-              if (name === 'slackCanvas' && channelId && !args.channelId) {
-                args = { ...args, channelId };
-              }
-              
               // Call the original execute with the updateStatus function
               return tool.execute(args, { 
                 ...options, 
@@ -84,15 +78,13 @@ TOOL SELECTION GUIDELINES:
 - For questions about specific websites or articles, use webScrape
 - For complex questions requiring in-depth analysis, use deepResearch. Because you work at a tech company, lots of your research might be around software, tools, or even engineering documentation. It's best practice to ask a user if they want you to do deep research or just a quick search.
 - When uncertain about information accuracy or recency, use jinaSearch to verify
-- It's okay to use multiple tools in a single response if needed! For instance, if more information could help a user, perhaps you can use the webScrape tool to get more information on a particular page.
-- Use the slackCanvas tool when asked to create a canvas or when organizing information in a structured format would be helpful
+- It's okay to use multiple tools in a single response if needed! For instance, if more information could help a user, perhaps you can use the webScrape tool to get more information on a particular page. 
 
 RESPONSE FORMATTING:
 - Format your responses using Slack's mrkdwn format, NOT standard markdown
 - Keep responses concise and focused
 - Do not tag users
 - Always include sources when using web search tools
-- When creating a canvas, let the user know you've created it
 
 Remember to maintain a helpful, professional tone while being conversational and engaging.`,
       messages,

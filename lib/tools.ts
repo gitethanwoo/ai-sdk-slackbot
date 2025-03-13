@@ -485,7 +485,7 @@ export const slackCanvas = tool({
   parameters: z.object({
     channelId: z.string().describe('The ID of the Slack channel where the canvas will be created'),
     markdown: z.string().describe('The markdown content to add to the canvas'),
-    title: z.string().optional().describe('Optional title for the canvas'),
+    title: z.string().describe('The title for the canvas'),
   }),
   execute: async ({ 
     channelId, 
