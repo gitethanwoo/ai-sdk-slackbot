@@ -67,36 +67,29 @@ export async function handleNewAssistantMessage(
       "\n\n[Message truncated due to length. Consider breaking your query into smaller parts.]";
   }
   
-  // For messages that need markdown formatting but are under the block limit
-  const SLACK_BLOCK_LIMIT = 3000;
+  // Section blocks have a 3000 character limit
+  const SECTION_BLOCK_LIMIT = 3000;
   
-  if (messageText.length <= SLACK_BLOCK_LIMIT) {
-    // For shorter messages, use blocks for better formatting
-    await client.chat.postMessage({
-      channel: channel,
-      thread_ts: thread_ts,
-      text: messageText, // Fallback text
-      unfurl_links: false,
-      blocks: [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: messageText,
-          }
-        },
-      ],
-    });
-  } else {
-    // For longer messages, just use the text field directly
-    await client.chat.postMessage({
-      channel: channel,
-      thread_ts: thread_ts,
-      text: messageText,
-      unfurl_links: false,
-      // No blocks for longer messages
+  // Split the message into chunks of 3000 characters or less
+  const blocks = [];
+  for (let i = 0; i < messageText.length; i += SECTION_BLOCK_LIMIT) {
+    const chunk = messageText.substring(i, i + SECTION_BLOCK_LIMIT);
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: chunk,
+      }
     });
   }
+  
+  await client.chat.postMessage({
+    channel: channel,
+    thread_ts: thread_ts,
+    text: messageText, // Fallback text
+    unfurl_links: false,
+    blocks: blocks,
+  });
 
   updateStatus("");
 }
