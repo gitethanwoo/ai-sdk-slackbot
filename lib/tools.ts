@@ -477,152 +477,173 @@ export const deepResearch = tool({
 });
 
 /**
- * Slack Canvas Creation tool
- * Creates a new canvas in a Slack channel with markdown content
+ * List Canvases tool
+ * Lists all canvases in a Slack channel
  */
-export const slackCanvas = tool({
-  description: 'Create a new canvas in a Slack channel with markdown content',
-  parameters: z.object({
-    markdown: z.string().describe('The markdown content to add to the canvas'),
-    title: z.string().describe('The title for the canvas (optional)'),
-  }),
-  execute: async ({ 
-    markdown, 
-    title 
-  }: { 
-    markdown: string,
-    title: string
-  }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
+export const listCanvases = tool({
+  description: 'List all canvases in a Slack channel',
+  parameters: z.object({}),
+  execute: async ({}, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
     try {
-      const updateStatus = options?.updateStatus;
       const context = options?.context || {};
-      
-      console.log('slackCanvas called with parameters:', { title });
-      console.log('slackCanvas context received:', context);
-      
-      // Get channel ID from context
       const channelId = context.channelId;
       
-      console.log('Channel ID from context:', channelId);
-      
-      // Simple validation - must have a channel ID
       if (!channelId) {
-        throw new Error('No channel ID available in context. Context must include channelId.');
+        throw new Error('No channel ID available in context');
       }
       
-      console.log('Creating Slack canvas in channel ID:', channelId);
-      
-      if (updateStatus) {
-        updateStatus("is preparing Slack canvas...");
-      }
-      
-      // Check if SLACK_BOT_TOKEN is set
       const slackToken = process.env.SLACK_BOT_TOKEN;
       if (!slackToken) {
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
-
-      // Prepare the request body exactly as expected by Slack API
-      const requestBody: any = {
-        channel_id: channelId,
-        document_content: {
-          type: "markdown",
-          markdown: markdown
+      
+      const response = await fetch(`https://slack.com/api/conversations.canvases.list?channel_id=${channelId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${slackToken}`,
+          'Content-Type': 'application/json'
         }
+      });
+      
+      const data = await response.json();
+      
+      if (!data.ok) {
+        throw new Error(`Slack API error: ${data.error}`);
+      }
+      
+      return {
+        canvases: data.canvases.map((canvas: any) => ({
+          id: canvas.id,
+          title: canvas.title,
+          url: `https://slack.com/canvas/${channelId}/${canvas.id}`,
+          slackUrl: `slack://canvas/${channelId}/${canvas.id}`
+        }))
       };
+    } catch (error: unknown) {
+      console.error('Error listing canvases:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { error: errorMessage };
+    }
+  }
+});
+
+/**
+ * Create Canvas tool
+ * Creates a new canvas in a Slack channel
+ */
+export const createCanvas = tool({
+  description: 'Create a new canvas in a Slack channel with markdown content',
+  parameters: z.object({
+    markdown: z.string().describe('The markdown content to add to the canvas'),
+    title: z.string().describe('The title for the canvas')
+  }),
+  execute: async ({ markdown, title }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
+    try {
+      const context = options?.context || {};
+      const channelId = context.channelId;
       
-      // Add title if provided (title appears to be optional in the API)
-      if (title) {
-        requestBody.title = title;
+      if (!channelId) {
+        throw new Error('No channel ID available in context');
       }
       
-      console.log('Request body:', JSON.stringify(requestBody, null, 2));
-      
-      if (updateStatus) {
-        updateStatus("is creating Slack canvas...");
+      const slackToken = process.env.SLACK_BOT_TOKEN;
+      if (!slackToken) {
+        throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
       
-      // Send the request to Slack API
       const response = await fetch('https://slack.com/api/conversations.canvases.create', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${slackToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({
+          channel_id: channelId,
+          title,
+          document_content: {
+            type: "markdown",
+            markdown: markdown
+          }
+        })
       });
 
       const data = await response.json();
       
       if (!data.ok) {
-        console.error('Slack API response:', data);
         throw new Error(`Slack API error: ${data.error}`);
       }
 
-      if (updateStatus) {
-        updateStatus("has created Slack canvas successfully!");
+      const canvasId = data.canvas?.id;
+      
+      return {
+        canvasId,
+        channelId,
+        title,
+        url: `https://slack.com/canvas/${channelId}/${canvasId}`,
+        slackUrl: `slack://canvas/${channelId}/${canvasId}`
+      };
+    } catch (error: unknown) {
+      console.error('Error creating canvas:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { error: errorMessage };
+    }
+  }
+});
+
+/**
+ * Update Canvas tool
+ * Updates an existing canvas in a Slack channel
+ */
+export const updateCanvas = tool({
+  description: 'Update an existing canvas in a Slack channel',
+  parameters: z.object({
+    canvasId: z.string().describe('The ID of the canvas to update'),
+    markdown: z.string().describe('The new markdown content for the canvas')
+  }),
+  execute: async ({ canvasId, markdown }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
+    try {
+      const context = options?.context || {};
+      const channelId = context.channelId;
+      
+      if (!channelId) {
+        throw new Error('No channel ID available in context');
       }
       
-      // Create both types of canvas URLs for maximum compatibility
-      const canvasId = data.canvas?.id;
-      const slackUrl = `slack://canvas/${channelId}/${canvasId}`;
-      const webUrl = `https://slack.com/canvas/${channelId}/${canvasId}`;
+      const slackToken = process.env.SLACK_BOT_TOKEN;
+      if (!slackToken) {
+        throw new Error('SLACK_BOT_TOKEN environment variable is not set');
+      }
       
-      console.log('Canvas created with URLs:', { slackUrl, webUrl });
+      const response = await fetch('https://slack.com/api/conversations.canvases.update', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${slackToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          canvas_id: canvasId,
+          channel_id: channelId,
+          document_content: {
+            type: "markdown",
+            markdown: markdown
+          }
+        })
+      });
+
+      const data = await response.json();
       
-      // Post a message in the channel with the canvas link
-      try {
-        await fetch('https://slack.com/api/chat.postMessage', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${slackToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            channel: channelId,
-            text: `I've created a new canvas: "${title || 'Untitled Canvas'}"`,
-            blocks: [
-              {
-                type: "section",
-                text: {
-                  type: "mrkdwn",
-                  text: `I've created a new canvas: *${title || 'Untitled Canvas'}*`
-                }
-              },
-              {
-                type: "actions",
-                elements: [
-                  {
-                    type: "button",
-                    text: {
-                      type: "plain_text",
-                      text: "View Canvas"
-                    },
-                    url: webUrl,
-                    action_id: "view_canvas"
-                  }
-                ]
-              }
-            ]
-          })
-        });
-        console.log('Posted canvas link message to channel');
-      } catch (messageError) {
-        console.error('Error posting canvas link message:', messageError);
-        // Don't throw here, as we still want to return the canvas info even if the message fails
+      if (!data.ok) {
+        throw new Error(`Slack API error: ${data.error}`);
       }
       
       return {
-        success: true,
-        canvasId: canvasId,
-        channelId: channelId,
-        slackResponse: data,
-        canvasUrl: webUrl,
-        slackCanvasUrl: slackUrl,
-        title: title || 'Untitled Canvas'
+        canvasId,
+        channelId,
+        url: `https://slack.com/canvas/${channelId}/${canvasId}`,
+        slackUrl: `slack://canvas/${channelId}/${canvasId}`
       };
     } catch (error: unknown) {
-      console.error('Error creating Slack canvas:', error);
+      console.error('Error updating canvas:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { error: errorMessage };
     }
@@ -636,7 +657,9 @@ export const tools = {
   webScrape,
   jinaSearch,
   deepResearch,
-  slackCanvas,
+  listCanvases,
+  createCanvas,
+  updateCanvas,
   // Add more tools here as needed
 };
 
