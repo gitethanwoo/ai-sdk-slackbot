@@ -592,7 +592,7 @@ export const updateCanvas = tool({
   parameters: z.object({
     canvasId: z.string().describe('The ID of the canvas to update'),
     markdown: z.string().describe('The new markdown content for the canvas'),
-    title: z.string().nullable().describe('The new title for the canvas (null if not updating)')
+    title: z.union([z.string(), z.literal(null)]).describe('The new title for the canvas (null to keep existing title)')
   }),
   execute: async ({ canvasId, markdown, title }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
     try {
@@ -601,25 +601,10 @@ export const updateCanvas = tool({
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
 
-      // Prepare the changes array
-      const changes = [];
-      
-      // Add content update
-      changes.push({
-        operation: "replace",
-        document_content: {
-          type: "markdown",
-          markdown: markdown
-        }
-      });
-
-      // Add title update if provided
-      if (title !== null) {
-        changes.push({
-          operation: "update_title",
-          title: title
-        });
-      }
+      // If we're updating the title, it needs to be the first line of the markdown
+      const contentToUpdate = title !== null 
+        ? `# ${title}\n\n${markdown}`  // Add title as H1 header
+        : markdown;
       
       const response = await fetch('https://slack.com/api/canvases.edit', {
         method: 'POST',
@@ -629,7 +614,13 @@ export const updateCanvas = tool({
         },
         body: JSON.stringify({
           canvas_id: canvasId,
-          changes: changes
+          changes: [{
+            operation: "replace",
+            document_content: {
+              type: "markdown",
+              markdown: contentToUpdate
+            }
+          }]
         })
       });
 
