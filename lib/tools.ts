@@ -448,7 +448,7 @@ export const deepResearch = tool({
       }
       
       // Generate comprehensive research using Perplexity's sonar-deep-research model
-      const { text } = await generateText({
+      const { text, sources } = await generateText({
         model: perplexity('sonar-deep-research'),
         system: systemPrompt,
         messages: [
@@ -459,6 +459,9 @@ export const deepResearch = tool({
         ],
       });
 
+      // Format sources as Slack links if they are an array of URLs
+      const formattedSources = Array.isArray(sources) ? sources.map(url => `<${url}|${url}>`) : sources;
+
       if (updateStatus) {
         updateStatus("is finalizing research report...");
         console.log("Status updated to 'is finalizing research report...'");
@@ -466,6 +469,7 @@ export const deepResearch = tool({
       
       return {
         research: text,
+        sources: formattedSources,
         query
       };
     } catch (error: unknown) {
