@@ -1,6 +1,7 @@
-import { anthropic } from '@ai-sdk/anthropic'
+//import { anthropic } from '@ai-sdk/anthropic'
 import { CoreMessage, generateText } from 'ai';
 import { tools } from './tools';
+import { openai } from '@ai-sdk/openai';
 
 export const generateResponse = async (
   messages: CoreMessage[],
@@ -37,8 +38,9 @@ export const generateResponse = async (
       })
     );
     
-    const { text, reasoning } = await generateText({
-      model: anthropic('claude-3-7-sonnet-20250219'), // Updated to newer model with reasoning support
+    const { text } = await generateText({
+      model: openai('o3-mini'),
+      maxTokens: 30000,
       system: `You are a helpful Research Assistant that lives in Slack. You are thorough, detailed, and helpful. You are also conversational and engaging, making sure to ask clarifying questions when needed. 
 
 CURRENT DATE: ${new Date().toISOString().split('T')[0]}
@@ -81,11 +83,6 @@ Remember to maintain a helpful, professional tone while being conversational and
       messages,
       maxSteps: 4,
       tools: enhancedTools,
-      providerOptions: {
-        anthropic: {
-          thinking: { type: 'enabled', budgetTokens: 12000 },
-        },
-      },
       onStepFinish({ toolResults }) {
         // When all tool results are in, update status to indicate we're finalizing the response
         if (updateStatus && toolResults && toolResults.length > 0) {
@@ -95,12 +92,6 @@ Remember to maintain a helpful, professional tone while being conversational and
       }
     });
     
-    // Log the reasoning for debugging purposes
-    if (reasoning) {
-      console.log("Model reasoning:", reasoning);
-    }
-    
-    console.log("Formatting complete, returning response");
     return text;
   } catch (error) {
     console.error("Error generating response:", error);
