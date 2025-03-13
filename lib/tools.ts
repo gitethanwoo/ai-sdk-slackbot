@@ -485,19 +485,12 @@ export const listCanvases = tool({
   parameters: z.object({}),
   execute: async ({}, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
     try {
-      const context = options?.context || {};
-      const channelId = context.channelId;
-      
-      if (!channelId) {
-        throw new Error('No channel ID available in context');
-      }
-      
       const slackToken = process.env.SLACK_BOT_TOKEN;
       if (!slackToken) {
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
       
-      const response = await fetch(`https://slack.com/api/conversations.canvases.list?channel_id=${channelId}`, {
+      const response = await fetch('https://slack.com/api/files.list?types=canvas', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${slackToken}`,
@@ -512,11 +505,11 @@ export const listCanvases = tool({
       }
       
       return {
-        canvases: data.canvases.map((canvas: any) => ({
+        canvases: data.files.map((canvas: any) => ({
           id: canvas.id,
-          title: canvas.title,
-          url: `https://slack.com/canvas/${channelId}/${canvas.id}`,
-          slackUrl: `slack://canvas/${channelId}/${canvas.id}`
+          title: canvas.title || canvas.name,
+          url: canvas.permalink,
+          slackUrl: canvas.permalink_public || canvas.url_private
         }))
       };
     } catch (error: unknown) {
