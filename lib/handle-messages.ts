@@ -79,7 +79,8 @@ export async function handleNewAssistantMessage(
       text: {
         type: "mrkdwn",
         text: chunk,
-      }
+      },
+      expand: true
     });
   }
   
