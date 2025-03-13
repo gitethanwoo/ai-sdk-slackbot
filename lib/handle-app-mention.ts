@@ -76,6 +76,13 @@ export async function handleNewAppMention(
   const { thread_ts, channel } = event;
   console.log(`Processing request in channel: ${channel}, thread: ${thread_ts || 'new thread'}`);
   
+  // Prepare context with channel information
+  const context = {
+    channelId: channel,
+    threadTs: thread_ts || event.ts
+  };
+  console.log("Context prepared:", context);
+  
   try {
     const updateMessage = await updateStatusUtil("is thinking...", event);
     console.log("Initial 'thinking' message posted");
@@ -86,7 +93,11 @@ export async function handleNewAppMention(
       console.log(`Thread history retrieved: ${messages.length} messages`);
       
       console.log("Generating response for thread");
-      const result = await generateResponse(messages, updateMessage);
+      const result = await generateResponse(
+        messages, 
+        updateMessage,
+        context // Pass context with channel ID
+      );
       console.log("Response generated, updating Slack message");
       
       const updateResult = await updateMessage(result);
@@ -96,6 +107,7 @@ export async function handleNewAppMention(
       const result = await generateResponse(
         [{ role: "user", content: event.text }],
         updateMessage,
+        context // Pass context with channel ID
       );
       console.log("Response generated, updating Slack message");
       
