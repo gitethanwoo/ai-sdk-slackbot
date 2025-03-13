@@ -563,11 +563,63 @@ export const slackCanvas = tool({
         updateStatus("has created Slack canvas successfully!");
       }
       
+      // Create both types of canvas URLs for maximum compatibility
+      const canvasId = data.canvas?.id;
+      const slackUrl = `slack://canvas/${channelId}/${canvasId}`;
+      const webUrl = `https://slack.com/canvas/${channelId}/${canvasId}`;
+      
+      console.log('Canvas created with URLs:', { slackUrl, webUrl });
+      
+      // Post a message in the channel with the canvas link
+      try {
+        await fetch('https://slack.com/api/chat.postMessage', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${slackToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            text: `I've created a new canvas: "${title || 'Untitled Canvas'}"`,
+            blocks: [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: `I've created a new canvas: *${title || 'Untitled Canvas'}*`
+                }
+              },
+              {
+                type: "actions",
+                elements: [
+                  {
+                    type: "button",
+                    text: {
+                      type: "plain_text",
+                      text: "View Canvas"
+                    },
+                    url: webUrl,
+                    action_id: "view_canvas"
+                  }
+                ]
+              }
+            ]
+          })
+        });
+        console.log('Posted canvas link message to channel');
+      } catch (messageError) {
+        console.error('Error posting canvas link message:', messageError);
+        // Don't throw here, as we still want to return the canvas info even if the message fails
+      }
+      
       return {
         success: true,
-        canvasId: data.canvas?.id,
+        canvasId: canvasId,
         channelId: channelId,
-        slackResponse: data
+        slackResponse: data,
+        canvasUrl: webUrl,
+        slackCanvasUrl: slackUrl,
+        title: title || 'Untitled Canvas'
       };
     } catch (error: unknown) {
       console.error('Error creating Slack canvas:', error);

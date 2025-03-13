@@ -75,6 +75,7 @@ AVAILABLE TOOLS:
    - Example: "Can you make a project canvas for our new initiative?"
    - Example: "Put this information in a Slack canvas"
    - Note: The canvas will be created in the current channel automatically (you don't need to specify the channel ID)
+   - Important: When you get the result from this tool, include the canvas link in your response so users can easily access it. A clickable button will also be posted in the channel.
 
 TOOL SELECTION GUIDELINES:
 - For simple questions you can answer directly, don't use any tools
