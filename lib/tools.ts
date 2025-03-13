@@ -591,23 +591,37 @@ export const updateCanvas = tool({
   description: 'Update an existing canvas in a Slack channel',
   parameters: z.object({
     canvasId: z.string().describe('The ID of the canvas to update'),
-    markdown: z.string().describe('The new markdown content for the canvas')
+    markdown: z.string().describe('The new markdown content for the canvas'),
+    title: z.string().optional().describe('The new title for the canvas')
   }),
-  execute: async ({ canvasId, markdown }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
+  execute: async ({ canvasId, markdown, title }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
     try {
-      const context = options?.context || {};
-      const channelId = context.channelId;
-      
-      if (!channelId) {
-        throw new Error('No channel ID available in context');
-      }
-      
       const slackToken = process.env.SLACK_BOT_TOKEN;
       if (!slackToken) {
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
+
+      // Prepare the changes array
+      const changes = [];
       
-      const response = await fetch('https://slack.com/api/conversations.canvases.update', {
+      // Add content update
+      changes.push({
+        operation: "replace",
+        document_content: {
+          type: "markdown",
+          markdown: markdown
+        }
+      });
+
+      // Add title update if provided
+      if (title) {
+        changes.push({
+          operation: "update_title",
+          title: title
+        });
+      }
+      
+      const response = await fetch('https://slack.com/api/canvases.edit', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${slackToken}`,
@@ -615,11 +629,7 @@ export const updateCanvas = tool({
         },
         body: JSON.stringify({
           canvas_id: canvasId,
-          channel_id: channelId,
-          document_content: {
-            type: "markdown",
-            markdown: markdown
-          }
+          changes: changes
         })
       });
 
@@ -631,9 +641,9 @@ export const updateCanvas = tool({
       
       return {
         canvasId,
-        channelId,
-        url: `https://slack.com/canvas/${channelId}/${canvasId}`,
-        slackUrl: `slack://canvas/${channelId}/${canvasId}`
+        title: title || data.canvas?.title,
+        url: data.canvas?.permalink,
+        slackUrl: data.canvas?.permalink_public
       };
     } catch (error: unknown) {
       console.error('Error updating canvas:', error);
