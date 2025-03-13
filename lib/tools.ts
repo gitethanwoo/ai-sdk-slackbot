@@ -503,20 +503,15 @@ export const slackCanvas = tool({
       // Get channel ID from parameter or context
       const targetChannelId = channelId || context.channelId || context.slackChannelId;
       
+      // Simple validation - must have a channel ID
       if (!targetChannelId) {
         throw new Error('No channel ID provided or available in context. Please specify a channelId parameter.');
       }
       
-      console.log('Creating Slack canvas in channel:', targetChannelId);
-      
-      // Simple validation for channel ID format
-      if (!targetChannelId.startsWith('C') && !targetChannelId.startsWith('D') && !targetChannelId.startsWith('G')) {
-        throw new Error(`Invalid channel ID format: ${targetChannelId}. Slack channel IDs typically start with 'C' followed by alphanumeric characters.`);
-      }
+      console.log('Creating Slack canvas in channel ID:', targetChannelId);
       
       if (updateStatus) {
         updateStatus("is preparing Slack canvas...");
-        console.log("Status updated to 'is preparing Slack canvas...'");
       }
       
       // Check if SLACK_BOT_TOKEN is set
@@ -525,33 +520,6 @@ export const slackCanvas = tool({
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
 
-      // First verify the bot is a member of the channel
-      try {
-        const checkResponse = await fetch(`https://slack.com/api/conversations.info?channel=${targetChannelId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${slackToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        const checkData = await checkResponse.json();
-        
-        if (!checkData.ok) {
-          throw new Error(`Cannot access channel: ${checkData.error}. Make sure the bot is a member of the channel.`);
-        }
-        
-        console.log(`Successfully verified channel access to: ${checkData.channel?.name || targetChannelId}`);
-      } catch (error) {
-        console.error('Error verifying channel access:', error);
-        throw new Error(`Failed to verify channel access. Make sure the bot is a member of the channel: ${error instanceof Error ? error.message : String(error)}`);
-      }
-
-      if (updateStatus) {
-        updateStatus("is creating Slack canvas...");
-        console.log("Status updated to 'is creating Slack canvas...'");
-      }
-      
       // Prepare the request body exactly as expected by Slack API
       const requestBody: any = {
         channel_id: targetChannelId,
@@ -567,6 +535,10 @@ export const slackCanvas = tool({
       }
       
       console.log('Request body:', JSON.stringify(requestBody, null, 2));
+      
+      if (updateStatus) {
+        updateStatus("is creating Slack canvas...");
+      }
       
       // Send the request to Slack API
       const response = await fetch('https://slack.com/api/conversations.canvases.create', {
@@ -587,7 +559,6 @@ export const slackCanvas = tool({
 
       if (updateStatus) {
         updateStatus("has created Slack canvas successfully!");
-        console.log("Status updated to 'has created Slack canvas successfully!'");
       }
       
       return {

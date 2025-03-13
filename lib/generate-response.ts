@@ -6,7 +6,6 @@ import { openai } from '@ai-sdk/openai';
 export const generateResponse = async (
   messages: CoreMessage[],
   updateStatus?: (status: string) => void,
-  context?: Record<string, any>
 ) => {
   try {
     console.log("Starting response generation");
@@ -28,22 +27,16 @@ export const generateResponse = async (
           {
             ...tool,
             execute: async (args: any, options: any = {}) => {
-              // Call the original execute with the updateStatus function and context
+              // Call the original execute with the updateStatus function
               return tool.execute(args, { 
                 ...options, 
-                updateStatus,
-                context
+                updateStatus 
               });
             }
           }
         ];
       })
     );
-    
-    // Log context for debugging purposes
-    if (context) {
-      console.log("Context being passed to tools:", JSON.stringify(context, null, 2));
-    }
     
     const { text } = await generateText({
       model: openai('o3-mini'),
