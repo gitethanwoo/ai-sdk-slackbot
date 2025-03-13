@@ -592,7 +592,7 @@ export const updateCanvas = tool({
   parameters: z.object({
     canvasId: z.string().describe('The ID of the canvas to update'),
     markdown: z.string().describe('The new markdown content for the canvas'),
-    title: z.string().optional().describe('The new title for the canvas')
+    title: z.string().nullable().describe('The new title for the canvas (null if not updating)')
   }),
   execute: async ({ canvasId, markdown, title }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
     try {
@@ -614,7 +614,7 @@ export const updateCanvas = tool({
       });
 
       // Add title update if provided
-      if (title) {
+      if (title !== null) {
         changes.push({
           operation: "update_title",
           title: title
