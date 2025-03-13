@@ -100,18 +100,8 @@ Remember to maintain a helpful, professional tone while being conversational and
       console.log("Model reasoning:", reasoning);
     }
     
-    // Even with direct instructions, we'll still do some light conversion for safety
-    // This handles cases where the model might still output markdown instead of mrkdwn
-    const formattedText = text
-      // Convert links: [text](url) -> <url|text>
-      .replace(/\[(.*?)\]\((.*?)\)/g, '<$2|$1>')
-      // Convert headings: # Heading -> *Heading*
-      .replace(/^#+\s+(.*?)$/gm, '*$1*')
-      // Convert bold: **text** -> *text*
-      .replace(/\*\*(.*?)\*\*/g, '*$1*');
-    
     console.log("Formatting complete, returning response");
-    return formattedText;
+    return text;
   } catch (error) {
     console.error("Error generating response:", error);
     throw error; // Re-throw to be handled by the caller

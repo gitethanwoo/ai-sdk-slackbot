@@ -153,7 +153,7 @@ export const jinaSearch = tool({
         Today's date is ${currentDate} and the current time is ${currentTime}.
         
         IMPORTANT: Focus on generating queries that will find the MOST RECENT information available. 
-        Include the current year (${currentDate.split('-')[0]}) in at least 3 of your queries to ensure fresh results.
+        Include the current year (${currentDate.split('-')[0]}) in at least 2 of your queries to ensure fresh results.
         For example, if searching about technology trends, include "${currentDate.split('-')[0]} technology trends" rather than just "technology trends".`,
         messages: [
           {
@@ -299,7 +299,7 @@ export const jinaSearch = tool({
           4. Are THE MOST RECENT available - strongly prefer content from ${currentDate.split('-')[0]} when available
           5. Represent diverse perspectives on the topic
           
-          Select up to 5 results total.`,
+          Select up to 10 results total.`,
           messages: [
             {
               role: 'user',
@@ -313,14 +313,14 @@ ${allSearchResults.map((result, i) =>
   ${result.source}`
 ).join('\n\n')}
 
-Select the most relevant results by returning their indices (0-based). Choose up to 5 results total.`
+Select the most relevant results by returning their indices (0-based). Choose up to 10 results total.`
             }
           ],
           temperature: 0.3,
         });
         
-        // Get the selected indices, ensuring we have at most 5
-        const selectedIndices = selectionResult.selectedIndices.slice(0, 5);
+        // Get the selected indices, ensuring we have at most 10
+        const selectedIndices = selectionResult.selectedIndices.slice(0, 10);
         console.log(`Selected indices: ${selectedIndices.join(', ')}`);
         
         // Now fetch full content for only the selected results
