@@ -10,7 +10,15 @@ export async function assistantThreadMessage(
 ) {
   const { channel_id, thread_ts } = event.assistant_thread;
   console.log(`Thread started: ${channel_id} ${thread_ts}`);
+  console.log(`IMPORTANT - The correct channel ID for this thread is: ${channel_id}`);
   console.log(JSON.stringify(event));
+
+  // Create context with channel information - this won't be used yet, but for consistency
+  const context = {
+    channelId: channel_id,
+    threadTs: thread_ts
+  };
+  console.log("Thread started with context:", context);
 
   await client.chat.postMessage({
     channel: channel_id,

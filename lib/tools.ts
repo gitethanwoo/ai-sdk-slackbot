@@ -485,14 +485,11 @@ export const slackCanvas = tool({
   parameters: z.object({
     markdown: z.string().describe('The markdown content to add to the canvas'),
     title: z.string().describe('The title for the canvas (optional)'),
-    channelId: z.string().describe('The ID of the Slack channel where the canvas will be created'),
   }),
   execute: async ({ 
-    channelId, 
     markdown, 
     title 
   }: { 
-    channelId: string, 
     markdown: string,
     title: string
   }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
@@ -500,20 +497,20 @@ export const slackCanvas = tool({
       const updateStatus = options?.updateStatus;
       const context = options?.context || {};
       
-      console.log('slackCanvas called with parameters:', { channelId, title });
+      console.log('slackCanvas called with parameters:', { title });
       console.log('slackCanvas context received:', context);
       
-      // Get channel ID from parameter or context
-      const targetChannelId = channelId || context.channelId || context.slackChannelId;
+      // Get channel ID from context
+      const channelId = context.channelId;
       
-      console.log('Final channel ID determined to be:', targetChannelId);
+      console.log('Channel ID from context:', channelId);
       
       // Simple validation - must have a channel ID
-      if (!targetChannelId) {
-        throw new Error('No channel ID provided or available in context. Please specify a channelId parameter.');
+      if (!channelId) {
+        throw new Error('No channel ID available in context. Context must include channelId.');
       }
       
-      console.log('Creating Slack canvas in channel ID:', targetChannelId);
+      console.log('Creating Slack canvas in channel ID:', channelId);
       
       if (updateStatus) {
         updateStatus("is preparing Slack canvas...");
@@ -527,7 +524,7 @@ export const slackCanvas = tool({
 
       // Prepare the request body exactly as expected by Slack API
       const requestBody: any = {
-        channel_id: targetChannelId,
+        channel_id: channelId,
         document_content: {
           type: "markdown",
           markdown: markdown
@@ -569,7 +566,7 @@ export const slackCanvas = tool({
       return {
         success: true,
         canvasId: data.canvas?.id,
-        channelId: targetChannelId,
+        channelId: channelId,
         slackResponse: data
       };
     } catch (error: unknown) {
