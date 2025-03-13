@@ -591,20 +591,14 @@ export const updateCanvas = tool({
   description: 'Update an existing canvas in a Slack channel',
   parameters: z.object({
     canvasId: z.string().describe('The ID of the canvas to update'),
-    markdown: z.string().describe('The new markdown content for the canvas'),
-    title: z.union([z.string(), z.literal(null)]).describe('The new title for the canvas (null to keep existing title)')
+    markdown: z.string().describe('The new markdown content for the canvas. The first line will be used as the title.')
   }),
-  execute: async ({ canvasId, markdown, title }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
+  execute: async ({ canvasId, markdown }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
     try {
       const slackToken = process.env.SLACK_BOT_TOKEN;
       if (!slackToken) {
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
-
-      // If we're updating the title, it needs to be the first line of the markdown
-      const contentToUpdate = title !== null 
-        ? `# ${title}\n\n${markdown}`  // Add title as H1 header
-        : markdown;
       
       const response = await fetch('https://slack.com/api/canvases.edit', {
         method: 'POST',
@@ -618,7 +612,7 @@ export const updateCanvas = tool({
             operation: "replace",
             document_content: {
               type: "markdown",
-              markdown: contentToUpdate
+              markdown: markdown
             }
           }]
         })
@@ -632,7 +626,6 @@ export const updateCanvas = tool({
       
       return {
         canvasId,
-        title: title || data.canvas?.title,
         url: data.canvas?.permalink,
         slackUrl: data.canvas?.permalink_public
       };
