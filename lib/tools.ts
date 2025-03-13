@@ -477,12 +477,108 @@ export const deepResearch = tool({
 });
 
 /**
+ * Slack Canvas Creation tool
+ * Creates a new canvas in a Slack channel with markdown content
+ */
+export const slackCanvas = tool({
+  description: 'Create a new canvas in a Slack channel with markdown content',
+  parameters: z.object({
+    channelId: z.string().describe('The ID of the Slack channel where the canvas will be created'),
+    markdown: z.string().describe('The markdown content to add to the canvas'),
+    title: z.string().optional().describe('Optional title for the canvas'),
+  }),
+  execute: async ({ 
+    channelId, 
+    markdown, 
+    title 
+  }: { 
+    channelId: string, 
+    markdown: string,
+    title?: string
+  }, options?: { updateStatus?: (status: string) => void }) => {
+    try {
+      const updateStatus = options?.updateStatus;
+      console.log('Creating Slack canvas in channel:', channelId);
+      
+      if (updateStatus) {
+        updateStatus("is preparing Slack canvas...");
+        console.log("Status updated to 'is preparing Slack canvas...'");
+      }
+      
+      // Check if SLACK_BOT_TOKEN is set
+      const slackToken = process.env.SLACK_BOT_TOKEN;
+      if (!slackToken) {
+        throw new Error('SLACK_BOT_TOKEN environment variable is not set');
+      }
+
+      if (updateStatus) {
+        updateStatus("is creating Slack canvas...");
+        console.log("Status updated to 'is creating Slack canvas...'");
+      }
+      
+      // Prepare the request body
+      const documentContent = {
+        type: "markdown",
+        markdown: markdown
+      };
+      
+      // Add title if provided
+      const requestBody: any = {
+        channel_id: channelId,
+        document_content: documentContent
+      };
+      
+      if (title) {
+        requestBody.title = title;
+      }
+      
+      // Send the request to Slack API
+      const response = await fetch('https://slack.com/api/conversations.canvases.create', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${slackToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create Slack canvas: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.ok) {
+        throw new Error(`Slack API error: ${data.error}`);
+      }
+
+      if (updateStatus) {
+        updateStatus("has created Slack canvas successfully!");
+        console.log("Status updated to 'has created Slack canvas successfully!'");
+      }
+      
+      return {
+        success: true,
+        canvasId: data.canvas?.id,
+        channelId,
+        slackResponse: data
+      };
+    } catch (error: unknown) {
+      console.error('Error creating Slack canvas:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { error: errorMessage };
+    }
+  }
+});
+
+/**
  * Collection of all available tools
  */
 export const tools = {
   webScrape,
   jinaSearch,
   deepResearch,
+  slackCanvas,
   // Add more tools here as needed
 };
 

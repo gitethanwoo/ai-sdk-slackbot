@@ -34,6 +34,10 @@ export async function assistantThreadMessage(
         title: "Research a topic",
         message: "Ask me clarifying questions to research this query: Conduct a comprehensive research on the market size for AI consultants in 2025.",
       },
+      {
+        title: "Create a canvas",
+        message: "Create a detailed Slack canvas summarizing the latest developments in AI technology in late 2024 and early 2025, including key trends and breakthroughs.",
+      },
     ],
   });
 }
@@ -55,7 +59,7 @@ export async function handleNewAssistantMessage(
   updateStatus("is thinking...");
 
   const messages = await getThread(channel, thread_ts, botUserId);
-  const result = await generateResponse(messages, updateStatus);
+  const result = await generateResponse(messages, updateStatus, channel);
 
   // Slack has a 40,000 character limit for the overall message text
   const SLACK_TEXT_LIMIT = 40000;

@@ -6,6 +6,7 @@ import { openai } from '@ai-sdk/openai';
 export const generateResponse = async (
   messages: CoreMessage[],
   updateStatus?: (status: string) => void,
+  channelId?: string,
 ) => {
   try {
     console.log("Starting response generation");
@@ -27,6 +28,11 @@ export const generateResponse = async (
           {
             ...tool,
             execute: async (args: any, options: any = {}) => {
+              // If this is the slackCanvas tool and we have a channelId, use it as the default
+              if (name === 'slackCanvas' && channelId && !args.channelId) {
+                args = { ...args, channelId };
+              }
+              
               // Call the original execute with the updateStatus function
               return tool.execute(args, { 
                 ...options, 
@@ -65,19 +71,28 @@ AVAILABLE TOOLS:
    - Example: "Compare and contrast different economic theories"
    - Note: This tool takes longer but provides more thorough information
 
+4. slackCanvas - Use this tool when explicitly asked to create a canvas or when organizing complex information would benefit from a structured canvas format.
+   - Best for: Creating visual summaries, project plans, research summaries, or when the user directly asks for a canvas
+   - Example: "Create a canvas about the latest AI developments"
+   - Example: "Can you make a project canvas for our new initiative?"
+   - Example: "Put this information in a Slack canvas"
+   - Note: The canvas will be created in the current channel automatically
+
 TOOL SELECTION GUIDELINES:
 - For simple questions you can answer directly, don't use any tools
 - For factual questions about current events or recent information, use jinaSearch
 - For questions about specific websites or articles, use webScrape
 - For complex questions requiring in-depth analysis, use deepResearch. Because you work at a tech company, lots of your research might be around software, tools, or even engineering documentation. It's best practice to ask a user if they want you to do deep research or just a quick search.
 - When uncertain about information accuracy or recency, use jinaSearch to verify
-- It's okay to use multiple tools in a single response if needed! For instance, if more information could help a user, perhaps you can use the webScrape tool to get more information on a particular page. 
+- It's okay to use multiple tools in a single response if needed! For instance, if more information could help a user, perhaps you can use the webScrape tool to get more information on a particular page.
+- Use the slackCanvas tool when asked to create a canvas or when organizing information in a structured format would be helpful
 
 RESPONSE FORMATTING:
 - Format your responses using Slack's mrkdwn format, NOT standard markdown
 - Keep responses concise and focused
 - Do not tag users
 - Always include sources when using web search tools
+- When creating a canvas, let the user know you've created it
 
 Remember to maintain a helpful, professional tone while being conversational and engaging.`,
       messages,
