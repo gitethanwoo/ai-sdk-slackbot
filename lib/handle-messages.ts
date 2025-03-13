@@ -24,7 +24,7 @@ export async function assistantThreadMessage(
     prompts: [
       {
         title: "Search the web",
-        message: "What are the latest developments in AI technology in 2024?",
+        message: "What are the latest developments in AI technology in late 2024 and early 2025?",
       },
       {
         title: "Scrape a webpage",
