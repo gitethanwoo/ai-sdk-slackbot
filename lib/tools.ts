@@ -31,9 +31,7 @@ function deduplicateByDomainAndUrl<T extends { url: string }>(items: T[]): T[] {
 export const webScrape = tool({
   description: 'Scrape a webpage and return its content in a format optimized for LLMs',
   parameters: z.object({
-    url: z.string()
-      .regex(/^https?:\/\/.+/i, 'Must be a valid HTTP/HTTPS URL')
-      .describe('The URL of the webpage to scrape'),
+    url: z.string().describe('The URL of the webpage to scrape (must be a valid HTTP/HTTPS URL)'),
   }),
   execute: async ({ url }: { url: string }, options?: { updateStatus?: (status: string) => void }) => {
     try {
