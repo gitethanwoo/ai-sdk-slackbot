@@ -70,18 +70,47 @@ export async function handleNewAssistantMessage(
   // Section blocks have a 3000 character limit
   const SECTION_BLOCK_LIMIT = 3000;
   
-  // Split the message into chunks of 3000 characters or less
+  // Split the message into chunks of ~3000 characters, breaking at word boundaries
   const blocks = [];
-  for (let i = 0; i < messageText.length; i += SECTION_BLOCK_LIMIT) {
-    const chunk = messageText.substring(i, i + SECTION_BLOCK_LIMIT);
+  let startIndex = 0;
+  
+  while (startIndex < messageText.length) {
+    // If we're near the end of the message, just take the rest
+    if (startIndex + SECTION_BLOCK_LIMIT >= messageText.length) {
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: messageText.substring(startIndex),
+        },
+        expand: true
+      });
+      break;
+    }
+    
+    // Find the last space before the 3000 character limit
+    let endIndex = startIndex + SECTION_BLOCK_LIMIT;
+    
+    // Look for the last space within the limit
+    const lastSpaceIndex = messageText.lastIndexOf(' ', endIndex);
+    
+    // If we found a space within a reasonable distance, use it
+    if (lastSpaceIndex > startIndex && lastSpaceIndex > endIndex - 100) {
+      endIndex = lastSpaceIndex;
+    }
+    // Otherwise, we'll just cut at the character limit (rare case with very long words)
+    
     blocks.push({
       type: "section",
       text: {
         type: "mrkdwn",
-        text: chunk,
+        text: messageText.substring(startIndex, endIndex),
       },
       expand: true
     });
+    
+    // Start the next chunk after the space
+    startIndex = endIndex + 1;
   }
   
   await client.chat.postMessage({

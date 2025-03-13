@@ -72,8 +72,8 @@ TOOL SELECTION GUIDELINES:
 - It's okay to use multiple tools in a single response if needed! For instance, if more information could help a user, perhaps you can use the webScrape tool to get more information on a particular page. 
 
 RESPONSE FORMATTING:
+- Format your responses using Slack's mrkdwn format, NOT standard markdown
 - Keep responses concise and focused
-- Format lists with bullet points
 - Do not tag users
 - Always include sources when using web search tools
 
@@ -100,8 +100,16 @@ Remember to maintain a helpful, professional tone while being conversational and
       console.log("Model reasoning:", reasoning);
     }
     
-    // Convert markdown to Slack mrkdwn format
-    const formattedText = text.replace(/\[(.*?)\]\((.*?)\)/g, '<$2|$1>').replace(/\*\*/g, '*');
+    // Even with direct instructions, we'll still do some light conversion for safety
+    // This handles cases where the model might still output markdown instead of mrkdwn
+    const formattedText = text
+      // Convert links: [text](url) -> <url|text>
+      .replace(/\[(.*?)\]\((.*?)\)/g, '<$2|$1>')
+      // Convert headings: # Heading -> *Heading*
+      .replace(/^#+\s+(.*?)$/gm, '*$1*')
+      // Convert bold: **text** -> *text*
+      .replace(/\*\*(.*?)\*\*/g, '*$1*');
+    
     console.log("Formatting complete, returning response");
     return formattedText;
   } catch (error) {
