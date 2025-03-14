@@ -38,11 +38,6 @@ export const webScrape = tool({
     try {
       const updateStatus = options?.updateStatus;
       
-      if (updateStatus) {
-        updateStatus("is connecting to the webpage...");
-        console.log("Status updated to 'is connecting to the webpage...'");
-      }
-      
       // Get your Jina AI API key for free: https://jina.ai/?sui=apikey
       const apiKey = process.env.JINA_API_KEY;
       if (!apiKey) {
@@ -83,11 +78,6 @@ export const webScrape = tool({
 
       // Extract the content from the response
       const { title, description, content, links, images } = data.data;
-      
-      if (updateStatus) {
-        updateStatus("is extracting relevant information...");
-        console.log("Status updated to 'is extracting relevant information...'");
-      }
       
       // Format the response
       return {
