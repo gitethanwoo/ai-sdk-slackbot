@@ -1,5 +1,5 @@
 import { AppMentionEvent } from "@slack/web-api";
-import { client, getThread } from "./slack-utils";
+import { client, getThread, sendUnifiedMessage } from "./slack-utils";
 import { generateResponse } from "./generate-response";
 
 // Add retry logic for Slack API calls
@@ -99,8 +99,13 @@ export async function handleNewAppMention(
       const result = await generateResponse(messages, updateMessage, context);
       console.log("Response generated, updating Slack message");
       
-      const updateResult = await updateMessage(result);
-      console.log(`Final message update complete: ${updateResult.ok}`);
+      await sendUnifiedMessage({
+        channel,
+        threadTs: thread_ts,
+        text: result,
+        updateStatus: updateMessage,
+        context,
+      });
     } else {
       console.log("Generating response for direct mention");
       const result = await generateResponse(
@@ -110,14 +115,24 @@ export async function handleNewAppMention(
       );
       console.log("Response generated, updating Slack message");
       
-      const updateResult = await updateMessage(result);
-      console.log(`Final message update complete: ${updateResult.ok}`);
+      await sendUnifiedMessage({
+        channel,
+        threadTs: event.ts,
+        text: result,
+        updateStatus: updateMessage,
+        context,
+      });
     }
   } catch (error) {
     console.error("Error handling app mention:", error);
     try {
       const updateMessage = await updateStatusUtil("Sorry, I encountered an error while processing your request. Please try again.", event);
-      await updateMessage("Sorry, I encountered an error while processing your request. Please try again.");
+      await sendUnifiedMessage({
+        channel: event.channel,
+        threadTs: event.thread_ts ?? event.ts,
+        text: "Sorry, I encountered an error while processing your request. Please try again.",
+        updateStatus: updateMessage,
+      });
     } catch (secondaryError) {
       console.error("Failed to send error message:", secondaryError);
     }
