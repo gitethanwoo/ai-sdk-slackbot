@@ -599,23 +599,77 @@ export const createCanvas = tool({
 });
 
 /**
- * Update Canvas tool
- * Updates an existing canvas in a Slack channel
+ * Section Lookup tool
+ * Looks up sections in a canvas based on content or position
  */
-export const updateCanvas = tool({
-  description: 'Update an existing canvas in a Slack channel',
+export const sectionLookup = tool({
+  description: 'Look up sections in a canvas based on content or position',
   parameters: z.object({
-    canvasId: z.string().describe('The ID of the canvas to update'),
-    markdown: z.string().describe('The new markdown content for the canvas. The first line will be used as the title.')
+    canvasId: z.string().describe('The ID of the canvas to look up sections in'),
+    query: z.string().describe('Description of the section to find (e.g., "the grocery list" or "the section containing coffee")')
   }),
-  execute: async ({ canvasId, markdown }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
+  execute: async ({ canvasId, query }: { canvasId: string; query: string }, options: any = {}) => {
     try {
       const slackToken = process.env.SLACK_BOT_TOKEN;
       if (!slackToken) {
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
+
+      const response = await fetch('https://slack.com/api/canvases.sections.lookup', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${slackToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ canvas_id: canvasId })
+      });
+
+      const data = await response.json();
       
-      // Use canvases.edit endpoint with the updated body format
+      if (!data.ok) {
+        throw new Error(`Slack API error: ${data.error}`);
+      }
+
+      // Return the sections with their IDs and content
+      return {
+        sections: data.sections.map((section: any) => ({
+          id: section.id,
+          content: section.content,
+          type: section.type
+        }))
+      };
+    } catch (error: unknown) {
+      console.error('Error looking up sections:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { error: errorMessage };
+    }
+  }
+});
+
+/**
+ * Make Edits tool
+ * Makes edits to a canvas using the canvases.edit API
+ */
+export const makeEdits = tool({
+  description: 'Make edits to a canvas using the canvases.edit API',
+  parameters: z.object({
+    canvasId: z.string().describe('The ID of the canvas to edit'),
+    changes: z.array(z.object({
+      operation: z.enum(['insert_after', 'insert_before', 'insert_at_start', 'insert_at_end', 'replace', 'delete']),
+      section_id: z.string().optional(),
+      document_content: z.object({
+        type: z.literal('markdown'),
+        markdown: z.string()
+      }).optional()
+    })).describe('Array of changes to apply to the canvas')
+  }),
+  execute: async ({ canvasId, changes }: { canvasId: string; changes: any[] }, options: any = {}) => {
+    try {
+      const slackToken = process.env.SLACK_BOT_TOKEN;
+      if (!slackToken) {
+        throw new Error('SLACK_BOT_TOKEN environment variable is not set');
+      }
+
       const response = await fetch('https://slack.com/api/canvases.edit', {
         method: 'POST',
         headers: {
@@ -624,10 +678,7 @@ export const updateCanvas = tool({
         },
         body: JSON.stringify({
           canvas_id: canvasId,
-          document_content: {
-            type: "markdown",
-            markdown: markdown
-          }
+          changes
         })
       });
 
@@ -636,14 +687,172 @@ export const updateCanvas = tool({
       if (!data.ok) {
         throw new Error(`Slack API error: ${data.error}`);
       }
-      
+
       return {
+        success: true,
         canvasId,
         url: `https://slack.com/docs/${canvasId}`,
         slackUrl: `slack://docs/${canvasId}`
       };
     } catch (error: unknown) {
+      console.error('Error making edits:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { error: errorMessage };
+    }
+  }
+});
+
+/**
+ * Canvas Editor Agent
+ * A comprehensive agent that handles all canvas editing operations through natural language instructions.
+ * This agent uses internal tools (sectionLookup and makeEdits) to perform the actual edits.
+ */
+export const canvasEditor = tool({
+  description: 'Edit a canvas using natural language instructions. This tool can add, move, update, or delete content anywhere in the canvas.',
+  parameters: z.object({
+    canvasId: z.string().describe('The ID of the canvas to edit'),
+    requestedChanges: z.string().describe('Natural language description of the changes to make (e.g., "add a new item before the coffee line" or "move the grocery list to the end")')
+  }),
+  execute: async ({ canvasId, requestedChanges }: { canvasId: string; requestedChanges: string }, options: any = {}) => {
+    try {
+      const { updateStatus } = options;
+      
+      if (updateStatus) {
+        updateStatus("is analyzing your edit request...");
+      }
+
+      // Create enhanced versions of our sub-tools with updateStatus and context
+      const enhancedTools = {
+        sectionLookup: {
+          ...sectionLookup,
+          execute: async (args: any, toolOptions: any = {}) => sectionLookup.execute(args, { 
+            ...toolOptions,
+            ...options
+          })
+        },
+        makeEdits: {
+          ...makeEdits,
+          execute: async (args: any, toolOptions: any = {}) => makeEdits.execute(args, { 
+            ...toolOptions,
+            ...options
+          })
+        }
+      };
+
+      // Generate the changes array using a smaller model
+      const { text: changesJson } = await generateText({
+        model: openai('gpt-4o-mini'),
+        system: `You are a Canvas Editing Agent for Slack. Your job is to interpret natural language edit requests and generate a structured array of changes to apply to a Slack canvas.
+
+Available operations:
+- insert_after: Add content after a specific section (requires section_id)
+- insert_before: Add content before a specific section (requires section_id)
+- insert_at_start: Add content at the beginning of the canvas
+- insert_at_end: Add content at the end of the canvas
+- replace: Replace content in a section or the entire canvas (section_id optional)
+- delete: Delete a specific section (requires section_id)
+
+For operations that require section IDs:
+1. First use the sectionLookup tool to find relevant sections
+2. Then include the section_id in your changes array
+
+Your output must be a valid JSON array of changes in this format:
+[{
+  "operation": "operation_name",
+  "section_id": "section_id" (if required),
+  "document_content": {
+    "type": "markdown",
+    "markdown": "content"
+  } (if required)
+}]
+
+Guidelines:
+- Keep markdown content well-formatted
+- Use section IDs appropriately based on the operation
+- Chain multiple operations if needed
+- If you need section information, use the sectionLookup tool first
+
+Remember:
+- The delete operation only needs section_id
+- insert_at_start and insert_at_end don't need section_id
+- All other operations need both section_id and document_content`,
+        messages: [
+          {
+            role: 'user',
+            content: `Canvas ID: ${canvasId}\nRequested changes: ${requestedChanges}`
+          }
+        ],
+        tools: enhancedTools,
+        toolChoice: 'required', // force the model to call a tool
+        temperature: 0.3
+      });
+
+      // Parse the generated changes
+      let changes;
+      try {
+        changes = JSON.parse(changesJson);
+      } catch (e) {
+        console.error('Error parsing changes JSON:', e);
+        throw new Error('Failed to generate valid changes array');
+      }
+
+      if (updateStatus) {
+        updateStatus("is applying changes to the canvas...");
+      }
+
+      // Apply the changes using makeEdits
+      return await makeEdits.execute({ canvasId, changes }, options);
+      
+    } catch (error: unknown) {
       console.error('Error updating canvas:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { error: errorMessage };
+    }
+  }
+});
+
+/**
+ * Canvas Read tool
+ * Reads the full content of a canvas
+ */
+export const canvasRead = tool({
+  description: 'Read the full content of a canvas',
+  parameters: z.object({
+    canvasId: z.string().describe('The ID of the canvas to read')
+  }),
+  execute: async ({ canvasId }: { canvasId: string }, options: any = {}) => {
+    try {
+      const slackToken = process.env.SLACK_BOT_TOKEN;
+      if (!slackToken) {
+        throw new Error('SLACK_BOT_TOKEN environment variable is not set');
+      }
+
+      // Use the same API endpoint as sectionLookup since it returns all sections
+      const response = await fetch('https://slack.com/api/canvases.sections.lookup', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${slackToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ canvas_id: canvasId })
+      });
+
+      const data = await response.json();
+      
+      if (!data.ok) {
+        throw new Error(`Slack API error: ${data.error}`);
+      }
+
+      // Return the full canvas content
+      return {
+        sections: data.sections.map((section: any) => ({
+          id: section.id,
+          content: section.content,
+          type: section.type
+        }))
+      };
+    } catch (error: unknown) {
+      console.error('Error reading canvas:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { error: errorMessage };
     }
@@ -659,8 +868,8 @@ export const tools = {
   deepResearch,
   listCanvases,
   createCanvas,
-  updateCanvas,
-  // Add more tools here as needed
+  canvasRead,
+  canvasEditor, // Only expose the high-level canvas editor agent
 };
 
 export default tools; 
