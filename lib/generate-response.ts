@@ -117,7 +117,7 @@ RESPONSE FORMATTING:
 
 Remember to maintain a helpful, professional tone while being conversational and engaging.`,
       messages,
-      maxSteps: 4,
+      maxSteps: 10,
       tools: enhancedTools,
       onStepFinish({ toolResults }) {
         // When all tool results are in, update status to indicate we're finalizing the response

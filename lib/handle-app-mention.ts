@@ -48,11 +48,14 @@ const updateStatusUtil = async (
   const updateMessage = async (status: string) => {
     console.log(`Updating message to: "${status.substring(0, 50)}${status.length > 50 ? '...' : ''}"`);
     
+    // Prevent empty status updates which cause Slack API errors
+    const messageText = status.trim() === "" ? " " : status;
+    
     return await withRetry(() => 
       client.chat.update({
         channel: event.channel,
         ts: initialMessage.ts as string,
-        text: status,
+        text: messageText,
       })
     ).then(result => {
       console.log(`Message update successful: ${result.ok}`);

@@ -149,9 +149,16 @@ export async function sendUnifiedMessage({
   // Send the message using the appropriate API
   await client.chat.postMessage(messagePayload);
 
-  // Update status if provided
+  // Update status if provided - either delete the status message or update with non-empty text
   if (updateStatus) {
-    await updateStatus("");
+    try {
+      // Instead of updating with empty text (which causes errors), 
+      // we'll update with a single space if we need to "clear" the message
+      // This avoids the "no_text" error from Slack's API
+      await updateStatus(" ");
+    } catch (error) {
+      console.warn("Failed to update status after sending message:", error);
+    }
   }
 }
 

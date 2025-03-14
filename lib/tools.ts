@@ -542,6 +542,11 @@ export const createCanvas = tool({
       if (!channelId) {
         throw new Error('No channel ID available in context');
       }
+
+      // Check if this is an assistant thread (DM channel)
+      if (channelId.startsWith('D')) {
+        throw new Error('Cannot create a new canvas in an assistant thread. Please update the existing canvas instead or inform the user that you cannot create a new canvas in an assistant thread.');
+      }
       
       const slackToken = process.env.SLACK_BOT_TOKEN;
       if (!slackToken) {
