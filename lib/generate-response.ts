@@ -55,7 +55,7 @@ AVAILABLE TOOLS:
    - Example: "Can you summarize the content at https://example.com/article"
    - Example: "What does this webpage say about X: https://example.com/page"
 
-2. jinaSearch - Use this tool when you need to search the web for current information. This tool generates multiple related search queries to find comprehensive information.
+2. quickSearch - Use this tool when you need to search the web for current information. This tool uses Google's flash model with search grounding enabled.
    - Best for: General information queries, current events, or when you need to find multiple sources
    - Example: "What are the latest developments in AI regulation?"
    - Example: "Who won the most recent championship?"

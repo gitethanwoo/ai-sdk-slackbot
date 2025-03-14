@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { generateText, generateObject } from 'ai';
 import { perplexity } from '@ai-sdk/perplexity';
+import { google } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 
 /**
@@ -401,6 +402,37 @@ Select the most relevant results by returning their indices (0-based). Choose up
       }
     } catch (error: unknown) {
       console.error('Error searching:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { error: errorMessage };
+    }
+  }
+});
+
+export const quickSearch = tool({
+  description: 'Perform a quick search using Google\'s flash model with search grounding enabled',
+  parameters: z.object({
+    query: z.string().describe('The search query to perform')
+  }),
+  execute: async ({ query }: { query: string }, options?: { updateStatus?: (status: string) => void }) => {
+    try {
+      const updateStatus = options?.updateStatus;
+      if (updateStatus) {
+        updateStatus("Performing quick search on your query...");
+      }
+      console.log('Performing quick search on:', query);
+
+      const { text, sources } = await generateText({
+        model: google('gemini-2.0-flash', { useSearchGrounding: true }),
+        prompt: query,
+      });
+
+      if (updateStatus) {
+        updateStatus("Quick search completed!");
+      }
+
+      return { text, sources, query };
+    } catch (error: unknown) {
+      console.error('Error performing quick search:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { error: errorMessage };
     }
@@ -851,7 +883,8 @@ export const canvasRead = tool({
  */
 export const tools = {
   webScrape,
-  jinaSearch,
+  //jinaSearch,
+  quickSearch,
   deepResearch,
   listCanvases,
   createCanvas,
