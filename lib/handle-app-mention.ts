@@ -51,11 +51,83 @@ const updateStatusUtil = async (
     // Prevent empty status updates which cause Slack API errors
     const messageText = status.trim() === "" ? " " : status;
     
+    // For longer responses, use blocks for better formatting
+    const SECTION_BLOCK_LIMIT = 3000;
+    const SLACK_TEXT_LIMIT = 40000;
+    
+    // Handle message length - truncate if necessary
+    let finalText = messageText;
+    if (finalText.length > SLACK_TEXT_LIMIT) {
+      finalText = finalText.substring(0, SLACK_TEXT_LIMIT - 100) + 
+        "\n\n[Message truncated due to length. Consider breaking your query into smaller parts.]";
+    }
+    
+    // For short status updates, don't use blocks
+    if (finalText.length < 100) {
+      return await withRetry(() => 
+        client.chat.update({
+          channel: event.channel,
+          ts: initialMessage.ts as string,
+          text: finalText,
+        })
+      ).then(result => {
+        console.log(`Message update successful: ${result.ok}`);
+        return result;
+      });
+    }
+    
+    // For longer responses, use blocks for better formatting
+    const blocks: Array<{
+      type: string;
+      text: {
+        type: string;
+        text: string;
+      };
+      expand?: boolean;
+    }> = [];
+    let startIndex = 0;
+    
+    while (startIndex < finalText.length) {
+      // If we're near the end of the message, just take the rest
+      if (startIndex + SECTION_BLOCK_LIMIT >= finalText.length) {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: finalText.substring(startIndex),
+          },
+          expand: true
+        });
+        break;
+      }
+      
+      // Find the last space before the limit
+      let endIndex = startIndex + SECTION_BLOCK_LIMIT;
+      const lastSpaceIndex = finalText.lastIndexOf(' ', endIndex);
+      
+      // If we found a space within a reasonable distance, use it
+      if (lastSpaceIndex > startIndex && lastSpaceIndex > endIndex - 100) {
+        endIndex = lastSpaceIndex;
+      }
+      
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: finalText.substring(startIndex, endIndex),
+        },
+        expand: true
+      });
+      
+      startIndex = endIndex + 1;
+    }
+    
     return await withRetry(() => 
       client.chat.update({
         channel: event.channel,
         ts: initialMessage.ts as string,
-        text: messageText,
+        text: finalText, // Fallback text
+        blocks,
       })
     ).then(result => {
       console.log(`Message update successful: ${result.ok}`);
@@ -102,13 +174,7 @@ export async function handleNewAppMention(
       const result = await generateResponse(messages, updateMessage, context);
       console.log("Response generated, updating Slack message");
       
-      await sendUnifiedMessage({
-        channel,
-        threadTs: thread_ts,
-        text: result,
-        updateStatus: updateMessage,
-        context,
-      });
+      await updateMessage(result);
     } else {
       console.log("Generating response for direct mention");
       const result = await generateResponse(
@@ -118,24 +184,13 @@ export async function handleNewAppMention(
       );
       console.log("Response generated, updating Slack message");
       
-      await sendUnifiedMessage({
-        channel,
-        threadTs: event.ts,
-        text: result,
-        updateStatus: updateMessage,
-        context,
-      });
+      await updateMessage(result);
     }
   } catch (error) {
     console.error("Error handling app mention:", error);
     try {
       const updateMessage = await updateStatusUtil("Sorry, I encountered an error while processing your request. Please try again.", event);
-      await sendUnifiedMessage({
-        channel: event.channel,
-        threadTs: event.thread_ts ?? event.ts,
-        text: "Sorry, I encountered an error while processing your request. Please try again.",
-        updateStatus: updateMessage,
-      });
+      // No need to send a unified message, as the error message is already displayed
     } catch (secondaryError) {
       console.error("Failed to send error message:", secondaryError);
     }
