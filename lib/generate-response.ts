@@ -89,7 +89,7 @@ AVAILABLE TOOLS:
    - Returns: Array of sections with their content
    - Example: When user asks "What's in the AI Tools canvas?"
    
-   d) canvasEditor - Use this tool for ALL canvas editing operations
+   d) canvasEditorAgent - Use this tool for ALL canvas editing operations
    - Best for: Any changes to existing canvases
    - Parameters: canvas ID and natural language description of changes
    - Examples: 

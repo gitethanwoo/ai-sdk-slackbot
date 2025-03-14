@@ -606,7 +606,7 @@ export const sectionLookup = tool({
   description: 'Look up sections in a canvas based on content or position',
   parameters: z.object({
     canvasId: z.string().describe('The ID of the canvas to look up sections in'),
-    query: z.string().describe('Description of the section to find (e.g., "the grocery list" or "the section containing coffee")')
+    query: z.string().describe('Text to search for in sections (e.g., "Grocery List" or "coffee")')
   }),
   execute: async ({ canvasId, query }: { canvasId: string; query: string }, options: any = {}) => {
     try {
@@ -621,7 +621,13 @@ export const sectionLookup = tool({
           'Authorization': `Bearer ${slackToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ canvas_id: canvasId })
+        body: JSON.stringify({
+          canvas_id: canvasId,
+          criteria: {
+            section_types: ['any_header'],
+            contains_text: query
+          }
+        })
       });
 
       const data = await response.json();
@@ -707,75 +713,40 @@ export const makeEdits = tool({
  * A comprehensive agent that handles all canvas editing operations through natural language instructions.
  * This agent uses internal tools (sectionLookup and makeEdits) to perform the actual edits.
  */
-export const canvasEditor = tool({
-  description: 'Edit a canvas using natural language instructions. This tool can add, move, update, or delete content anywhere in the canvas.',
+export const canvasEditorAgent = tool({
+  description: 'Edit a canvas using natural language instructions. This tool can add, move, update, or delete content anywhere in the canvas. ',
   parameters: z.object({
     canvasId: z.string().describe('The ID of the canvas to edit'),
+    canvasContent: z.string().describe('The content of the canvas to edit'),
     requestedChanges: z.string().describe('Natural language description of the changes to make (e.g., "add a new item before the coffee line" or "move the grocery list to the end")')
   }),
   execute: async ({ canvasId, requestedChanges }: { canvasId: string; requestedChanges: string }, options: any = {}) => {
     try {
       const { updateStatus } = options;
-      
+
       if (updateStatus) {
         updateStatus("is analyzing your edit request...");
       }
 
-      // Create enhanced versions of our sub-tools with updateStatus and context
       const enhancedTools = {
         sectionLookup: {
           ...sectionLookup,
-          execute: async (args: any, toolOptions: any = {}) => sectionLookup.execute(args, { 
-            ...toolOptions,
-            ...options
-          })
+          execute: async (args: any, toolOptions: any = {}) => sectionLookup.execute(args, { ...toolOptions, ...options })
         },
         makeEdits: {
           ...makeEdits,
-          execute: async (args: any, toolOptions: any = {}) => makeEdits.execute(args, { 
-            ...toolOptions,
-            ...options
-          })
+          execute: async (args: any, toolOptions: any = {}) => makeEdits.execute(args, { ...toolOptions, ...options })
         }
       };
 
-      // Generate the changes array using a smaller model
-      const { text: changesJson } = await generateText({
+      // Let generateText internally coordinate tool calls (i.e. sectionLookup and makeEdits) based on the natural language request.
+      const result = await generateText({
         model: openai('gpt-4o-mini'),
-        system: `You are a Canvas Editing Agent for Slack. Your job is to interpret natural language edit requests and generate a structured array of changes to apply to a Slack canvas.
-
-Available operations:
-- insert_after: Add content after a specific section (requires section_id)
-- insert_before: Add content before a specific section (requires section_id)
-- insert_at_start: Add content at the beginning of the canvas
-- insert_at_end: Add content at the end of the canvas
-- replace: Replace content in a section or the entire canvas (section_id optional)
-- delete: Delete a specific section (requires section_id)
-
-For operations that require section IDs:
-1. First use the sectionLookup tool to find relevant sections
-2. Then include the section_id in your changes array
-
-Your output must be a valid JSON array of changes in this format:
-[{
-  "operation": "operation_name",
-  "section_id": "section_id" (if required),
-  "document_content": {
-    "type": "markdown",
-    "markdown": "content"
-  } (if required)
-}]
-
-Guidelines:
-- Keep markdown content well-formatted
-- Use section IDs appropriately based on the operation
-- Chain multiple operations if needed
-- If you need section information, use the sectionLookup tool first
-
-Remember:
-- The delete operation only needs section_id
-- insert_at_start and insert_at_end don't need section_id
-- All other operations need both section_id and document_content`,
+        system: `You are a Canvas Editing Agent for Slack. Your job is to interpret natural language edit requests for a canvas and execute changes by directly calling the sectionLookup and makeEdits tools as needed. Here's how it works. 
+        1. You will be given a canvas ID and a natural language description of the changes to make.
+        2. You will use the sectionLookup tool to find the section that matches the natural language description.
+        3. You will use the makeEdits tool to make the changes to the canvas.
+        4. You will return the final canvas content.`,
         messages: [
           {
             role: 'user',
@@ -783,26 +754,13 @@ Remember:
           }
         ],
         tools: enhancedTools,
-        toolChoice: 'required', // force the model to call a tool
-        temperature: 0.3
+        toolChoice: 'required',
+        temperature: 0.3,
+        maxSteps: 8
       });
 
-      // Parse the generated changes
-      let changes;
-      try {
-        changes = JSON.parse(changesJson);
-      } catch (e) {
-        console.error('Error parsing changes JSON:', e);
-        throw new Error('Failed to generate valid changes array');
-      }
-
-      if (updateStatus) {
-        updateStatus("is applying changes to the canvas...");
-      }
-
-      // Apply the changes using makeEdits
-      return await makeEdits.execute({ canvasId, changes }, options);
-      
+      // Return the final result from generateText, which includes the internal tool calls.
+      return result;
     } catch (error: unknown) {
       console.error('Error updating canvas:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -898,7 +856,7 @@ export const tools = {
   listCanvases,
   createCanvas,
   canvasRead,
-  canvasEditor, // Only expose the high-level canvas editor agent
+  canvasEditorAgent, // Only expose the high-level canvas editor agent
 };
 
 export default tools; 
