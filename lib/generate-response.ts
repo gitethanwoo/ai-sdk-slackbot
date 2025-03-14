@@ -72,7 +72,7 @@ AVAILABLE TOOLS:
 4. Canvas Management Tools:
    These tools work together to help you manage Slack canvases effectively.
    
-   a) listCanvases - Use this tool to get a list of all canvases in the current channel
+   a) listCanvases - Use this tool to get a list of all canvases in the current channel. If a user asks anything about canvases, you should use this tool first! 
    - Best for: Finding existing canvases or checking for duplicates
    - Example: When user asks "Create a canvas about AI tools", first check if one exists
    - Returns: List of canvases with their IDs, titles, and URLs
@@ -121,6 +121,7 @@ TOOL SELECTION GUIDELINES:
 - For questions about specific websites or articles, use webScrape
 - For complex questions requiring in-depth analysis, use deepResearch
 - For ANY canvas editing operations, use canvasEditor - do not try to modify canvas sections directly
+- Be careful, you must fetch what canvases exist before you can edit them! (You'll need to use listCanvases and maybe even canvasRead just to make sure you've got the right canvas ID)
 - When uncertain about information accuracy or recency, use quickSearch to verify
 - It's okay to use multiple tools in a single response if needed
 
