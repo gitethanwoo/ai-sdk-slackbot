@@ -532,7 +532,7 @@ export const createCanvas = tool({
   description: 'Create a new canvas in a Slack channel with markdown content',
   parameters: z.object({
     markdown: z.string().describe('The markdown content to add to the canvas'),
-    title: z.string().describe('The title for the canvas')
+    title: z.string().describe('The unique title for the canvas')
   }),
   execute: async ({ markdown, title }, options?: { updateStatus?: (status: string) => void; context?: Record<string, any> }) => {
     try {
@@ -553,14 +553,14 @@ export const createCanvas = tool({
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
       
-      const response = await fetch('https://slack.com/api/conversations.canvases.create', {
+      // Use canvases.create instead of conversations.canvases.create
+      const response = await fetch('https://slack.com/api/canvases.create', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${slackToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          channel_id: channelId,
           title,
           document_content: {
             type: "markdown",
@@ -572,6 +572,12 @@ export const createCanvas = tool({
       const data = await response.json();
       
       if (!data.ok) {
+        // Special handling for specific error types
+        if (data.error === 'channel_canvas_already_exists') {
+          return {
+            error: 'A canvas with this title already exists in the channel. Please use a different title or use the updateCanvas tool to modify the existing canvas.'
+          };
+        }
         throw new Error(`Slack API error: ${data.error}`);
       }
 
@@ -581,8 +587,8 @@ export const createCanvas = tool({
         canvasId,
         channelId,
         title,
-        url: `https://slack.com/canvas/${channelId}/${canvasId}`,
-        slackUrl: `slack://canvas/${channelId}/${canvasId}`
+        url: `https://slack.com/docs/${canvasId}`,
+        slackUrl: `slack://docs/${canvasId}`
       };
     } catch (error: unknown) {
       console.error('Error creating canvas:', error);
@@ -609,6 +615,7 @@ export const updateCanvas = tool({
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
       
+      // Use canvases.edit endpoint with the updated body format
       const response = await fetch('https://slack.com/api/canvases.edit', {
         method: 'POST',
         headers: {
@@ -617,13 +624,10 @@ export const updateCanvas = tool({
         },
         body: JSON.stringify({
           canvas_id: canvasId,
-          changes: [{
-            operation: "replace",
-            document_content: {
-              type: "markdown",
-              markdown: markdown
-            }
-          }]
+          document_content: {
+            type: "markdown",
+            markdown: markdown
+          }
         })
       });
 
@@ -635,8 +639,8 @@ export const updateCanvas = tool({
       
       return {
         canvasId,
-        url: data.canvas?.permalink,
-        slackUrl: data.canvas?.permalink_public
+        url: `https://slack.com/docs/${canvasId}`,
+        slackUrl: `slack://docs/${canvasId}`
       };
     } catch (error: unknown) {
       console.error('Error updating canvas:', error);
