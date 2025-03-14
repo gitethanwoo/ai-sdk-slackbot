@@ -456,13 +456,7 @@ export const deepResearch = tool({
     try {
       const updateStatus = options?.updateStatus;
       console.log('Conducting deep research on:', query);
-      
-      if (updateStatus) {
-        updateStatus("is preparing research parameters...");
-        console.log("Status updated to 'is preparing research parameters...'");
-      }
-      
-      // Check if PERPLEXITY_API_KEY is set
+    
       const apiKey = process.env.PERPLEXITY_API_KEY;
       if (!apiKey) {
         throw new Error('PERPLEXITY_API_KEY environment variable is not set');
@@ -475,8 +469,8 @@ export const deepResearch = tool({
       Present a balanced view that considers multiple perspectives and provides actionable insights.`;
 
       if (updateStatus) {
-        updateStatus("is conducting comprehensive research...");
-        console.log("Status updated to 'is conducting comprehensive research...'");
+        updateStatus("is starting deep research...");
+        console.log("Status updated to 'is starting deep research...'");
       }
       
       // Generate comprehensive research using Perplexity's sonar-deep-research model
@@ -495,8 +489,8 @@ export const deepResearch = tool({
       const formattedSources = Array.isArray(sources) ? sources.map(url => `<${url}|${url}>`) : sources;
 
       if (updateStatus) {
-        updateStatus("is finalizing research report...");
-        console.log("Status updated to 'is finalizing research report...'");
+        updateStatus("is wrapping up deep research...");
+        console.log("Status updated to 'is wrapping up deep research...'");
       }
       
       return {
@@ -877,26 +871,6 @@ export const canvasRead = tool({
     }
   }
 });
-
-/**
- * Helper function to generate a formatted response from tool results
- * Automatically appends sources as footnotes if present
- */
-export function generateResponse(toolResults: { text: string; sources?: (string | { url: string })[] }) {
-  if (!toolResults || !toolResults.text) return '';
-  
-  let response = toolResults.text;
-  
-  // Add sources if present
-  if (toolResults.sources?.length) {
-    response += '\n\nSources:\n';
-    response += toolResults.sources
-      .map((source, i) => `[${i + 1}] ${typeof source === 'string' ? source : source.url}`)
-      .join('\n');
-  }
-  
-  return response;
-}
 
 /**
  * Collection of all available tools
