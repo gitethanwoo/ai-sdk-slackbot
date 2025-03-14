@@ -633,8 +633,8 @@ export const createCanvas = tool({
         canvasId,
         channelId,
         title,
-        url: `https://slack.com/docs/${canvasId}`,
-        slackUrl: `slack://docs/${canvasId}`
+        url: `https://slack.com/docs/${channelId}/${canvasId}`,
+        slackUrl: `slack://docs/${channelId}/${canvasId}`
       };
     } catch (error: unknown) {
       console.error('Error creating canvas:', error);
