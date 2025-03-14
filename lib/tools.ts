@@ -609,6 +609,26 @@ export const createCanvas = tool({
 
       const canvasId = data.canvas_id;
       
+      // Set channel access to write immediately after creation
+      const accessResponse = await fetch('https://slack.com/api/canvases.access.set', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${slackToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          canvas_id: canvasId,
+          channel_ids: [channelId],
+          access_level: 'write'
+        })
+      });
+
+      const accessData = await accessResponse.json();
+      
+      if (!accessData.ok) {
+        throw new Error(`Failed to set canvas access: ${accessData.error}`);
+      }
+      
       return {
         canvasId,
         channelId,
