@@ -485,9 +485,6 @@ export const deepResearch = tool({
         ],
       });
 
-      // Format sources as Slack links if they are an array of URLs
-      const formattedSources = Array.isArray(sources) ? sources.map(url => `<${url}|${url}>`) : sources;
-
       if (updateStatus) {
         updateStatus("is wrapping up deep research...");
         console.log("Status updated to 'is wrapping up deep research...'");
@@ -495,7 +492,7 @@ export const deepResearch = tool({
       
       return {
         research: text,
-        sources: formattedSources,
+        sources,
         query
       };
     } catch (error: unknown) {
