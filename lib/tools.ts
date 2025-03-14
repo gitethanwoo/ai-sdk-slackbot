@@ -779,7 +779,9 @@ export const canvasEditorAgent = tool({
         1. You will be given a canvas ID and a natural language description of the changes to make.
         2. You will use the sectionLookup tool to find the section that matches the natural language description.
         3. You will use the makeEdits tool to make the changes to the canvas.
-        4. You will return the final canvas content.`,
+        4. You will return the final canvas content.
+        
+        IMPORTANT: When using makeEdits, always use "markdown" (not "text") as the type in document_content.`,
         messages: [
           {
             role: 'user',
@@ -789,7 +791,12 @@ export const canvasEditorAgent = tool({
         tools: enhancedTools,
         toolChoice: 'required',
         temperature: 0.3,
-        maxSteps: 8
+        maxSteps: 8,
+        onStepFinish({ text, toolResults, usage, toolCalls }) {
+          console.log("Tool calls:", toolCalls);
+          console.log("Text from tool call:", text);
+          console.log("Tool results:", toolResults);
+        }
       });
 
       // Return the final result from generateText, which includes the internal tool calls.
