@@ -750,12 +750,23 @@ export const canvasEditorAgent = tool({
   description: 'Edit a canvas using natural language instructions. This tool can add, move, update, or delete content anywhere in the canvas. ',
   parameters: z.object({
     canvasId: z.string().describe('The ID of the canvas to edit'),
-    canvasContent: z.string().describe('The content of the canvas to edit'),
     requestedChanges: z.string().describe('Natural language description of the changes to make (e.g., "add a new item before the coffee line" or "move the grocery list to the end")')
   }),
   execute: async ({ canvasId, requestedChanges }: { canvasId: string; requestedChanges: string }, options: any = {}) => {
     try {
       const { updateStatus } = options;
+
+      if (updateStatus) {
+        updateStatus("is reading current canvas content...");
+      }
+
+      // First, read the current canvas content
+      const canvasResult = await canvasRead.execute({ canvasId }, options);
+      if ('error' in canvasResult) {
+        throw new Error(`Failed to read canvas: ${canvasResult.error}`);
+      }
+
+      const canvasContent = canvasResult.content;
 
       if (updateStatus) {
         updateStatus("is analyzing your edit request...");
@@ -776,7 +787,7 @@ export const canvasEditorAgent = tool({
       const result = await generateText({
         model: openai('gpt-4o-mini'),
         system: `You are a Canvas Editing Agent for Slack. Your job is to interpret natural language edit requests for a canvas and execute changes by directly calling the sectionLookup and makeEdits tools as needed. Here's how it works. 
-        1. You will be given a canvas ID and a natural language description of the changes to make.
+        1. You will be given a canvas ID, its current content, and a natural language description of the changes to make.
         2. You will use the sectionLookup tool to find the section that matches the natural language description.
         3. You will use the makeEdits tool to make the changes to the canvas.
         4. You will return the final canvas content.
@@ -785,7 +796,11 @@ export const canvasEditorAgent = tool({
         messages: [
           {
             role: 'user',
-            content: `Canvas ID: ${canvasId}\nRequested changes: ${requestedChanges}`
+            content: `Canvas ID: ${canvasId}
+Current Canvas Content:
+${canvasContent}
+
+Requested changes: ${requestedChanges}`
           }
         ],
         tools: enhancedTools,
