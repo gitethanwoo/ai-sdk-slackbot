@@ -45,7 +45,7 @@ export const generateResponse = async (
     const { text } = await generateText({
       model: openai('o3-mini'),
       maxTokens: 30000,
-      system: `You are a helpful Research Assistant that lives in Slack. You are thorough, detailed, and helpful. You are also conversational and engaging, making sure to ask clarifying questions when needed. 
+      system: `You are a helpful Research Assistant that lives in Slack. You are thorough, detailed, and helpful. You are also conversational and engaging, making sure to ask clarifying questions when needed. Always consider whether or not the user's query has been sufficiently answered, or if there are still critical knowledge gaps that need to be filled. If there are, you should use the appropriate tool to fill those gaps like webScrape, deepResearch, or quickSearch.
 
 CURRENT DATE: ${new Date().toISOString().split('T')[0]}
 
