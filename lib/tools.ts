@@ -813,7 +813,7 @@ Remember:
 
 /**
  * Canvas Read tool
- * Reads the full content of a canvas
+ * Reads the full content of a canvas by fetching file info and content
  */
 export const canvasRead = tool({
   description: 'Read the full content of a canvas',
@@ -822,34 +822,61 @@ export const canvasRead = tool({
   }),
   execute: async ({ canvasId }: { canvasId: string }, options: any = {}) => {
     try {
+      const { updateStatus } = options;
+      
+      if (updateStatus) {
+        updateStatus("is fetching canvas information...");
+      }
+
       const slackToken = process.env.SLACK_BOT_TOKEN;
       if (!slackToken) {
         throw new Error('SLACK_BOT_TOKEN environment variable is not set');
       }
 
-      // Use the same API endpoint as sectionLookup since it returns all sections
-      const response = await fetch('https://slack.com/api/canvases.sections.lookup', {
-        method: 'POST',
+      // First get the file info
+      const infoResponse = await fetch(`https://slack.com/api/files.info?file=${canvasId}`, {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${slackToken}`,
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ canvas_id: canvasId })
+        }
       });
 
-      const data = await response.json();
+      const infoData = await infoResponse.json();
       
-      if (!data.ok) {
-        throw new Error(`Slack API error: ${data.error}`);
+      if (!infoData.ok) {
+        throw new Error(`Slack API error: ${infoData.error}`);
       }
 
-      // Return the full canvas content
+      const { file } = infoData;
+      
+      if (updateStatus) {
+        updateStatus("is reading canvas content...");
+      }
+
+      // Now fetch the actual content from url_private
+      const contentResponse = await fetch(file.url_private, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${slackToken}`
+        }
+      });
+
+      if (!contentResponse.ok) {
+        throw new Error(`Failed to fetch canvas content: ${contentResponse.statusText}`);
+      }
+
+      const content = await contentResponse.text();
+
+      // Return both the file metadata and content
       return {
-        sections: data.sections.map((section: any) => ({
-          id: section.id,
-          content: section.content,
-          type: section.type
-        }))
+        id: file.id,
+        title: file.title,
+        created: file.created,
+        permalink: file.permalink,
+        content,
+        is_public: file.is_public,
+        user: file.user
       };
     } catch (error: unknown) {
       console.error('Error reading canvas:', error);
