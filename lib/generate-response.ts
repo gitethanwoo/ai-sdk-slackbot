@@ -81,6 +81,7 @@ AVAILABLE TOOLS:
    b) createCanvas - Use this tool to create a new canvas
    - Best for: When you need a fresh canvas or confirmed no similar canvas exists
    - Parameters: markdown content and title
+   - Instruction: When creating a canvas, make sure you're formatting it nicely with markdown, making appropriate use of headings, bolding, bullet points, etc. 
    - Returns: Canvas ID, URLs, and title
    
    c) canvasRead - Use this tool to read the full content of a canvas
