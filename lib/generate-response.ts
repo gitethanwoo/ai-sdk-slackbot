@@ -134,11 +134,9 @@ Remember to maintain a helpful, professional tone while being conversational and
       messages,
       maxSteps: 10,
       tools: enhancedTools,
-      onStepFinish({ text, toolCalls, toolResults, finishReason, usage }) {
-        console.log("Finished tool call:", toolCalls);
+      onStepFinish({ text, toolResults, usage }) {
         console.log("Text from tool call:", text);
         console.log("Tool results:", toolResults);
-        console.log("Finish reason:", finishReason);
         console.log("Usage:", usage);
       }
     });

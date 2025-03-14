@@ -607,7 +607,7 @@ export const createCanvas = tool({
         throw new Error(`Slack API error: ${data.error}`);
       }
 
-      const canvasId = data.canvas?.id;
+      const canvasId = data.canvas_id;
       
       return {
         canvasId,
