@@ -417,7 +417,7 @@ export const quickSearch = tool({
     try {
       const updateStatus = options?.updateStatus;
       if (updateStatus) {
-        updateStatus("Performing quick search on your query...");
+        updateStatus("is performing a quick search on your query...");
       }
       console.log('Performing quick search on:', query);
 
@@ -427,7 +427,7 @@ export const quickSearch = tool({
       });
 
       if (updateStatus) {
-        updateStatus("Quick search completed!");
+        updateStatus("has completed the search!");
       }
 
       return { text, sources, query };
@@ -877,6 +877,26 @@ export const canvasRead = tool({
     }
   }
 });
+
+/**
+ * Helper function to generate a formatted response from tool results
+ * Automatically appends sources as footnotes if present
+ */
+export function generateResponse(toolResults: { text: string; sources?: (string | { url: string })[] }) {
+  if (!toolResults || !toolResults.text) return '';
+  
+  let response = toolResults.text;
+  
+  // Add sources if present
+  if (toolResults.sources?.length) {
+    response += '\n\nSources:\n';
+    response += toolResults.sources
+      .map((source, i) => `[${i + 1}] ${typeof source === 'string' ? source : source.url}`)
+      .join('\n');
+  }
+  
+  return response;
+}
 
 /**
  * Collection of all available tools

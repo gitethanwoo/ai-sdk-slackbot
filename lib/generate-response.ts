@@ -117,11 +117,11 @@ AVAILABLE TOOLS:
 
 TOOL SELECTION GUIDELINES:
 - For simple questions you can answer directly, don't use any tools
-- For factual questions about current events or recent information, use jinaSearch
+- For factual questions about current events or recent information, use quickSearch
 - For questions about specific websites or articles, use webScrape
 - For complex questions requiring in-depth analysis, use deepResearch
 - For ANY canvas editing operations, use canvasEditor - do not try to modify canvas sections directly
-- When uncertain about information accuracy or recency, use jinaSearch to verify
+- When uncertain about information accuracy or recency, use quickSearch to verify
 - It's okay to use multiple tools in a single response if needed
 
 RESPONSE FORMATTING:
@@ -134,12 +134,12 @@ Remember to maintain a helpful, professional tone while being conversational and
       messages,
       maxSteps: 10,
       tools: enhancedTools,
-      onStepFinish({ toolResults }) {
-        // When all tool results are in, update status to indicate we're finalizing the response
-        if (updateStatus && toolResults && toolResults.length > 0) {
-          updateStatus("is finalizing response...");
-          console.log("Status updated to 'is finalizing response...'");
-        }
+      onStepFinish({ text, toolCalls, toolResults, finishReason, usage }) {
+        console.log("Finished tool call:", toolCalls);
+        console.log("Text from tool call:", text);
+        console.log("Tool results:", toolResults);
+        console.log("Finish reason:", finishReason);
+        console.log("Usage:", usage);
       }
     });
     
