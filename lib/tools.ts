@@ -866,6 +866,8 @@ export const canvasRead = tool({
         throw new Error(`Failed to fetch canvas content: ${contentResponse.statusText}`);
       }
 
+      console.log('contentResponse', contentResponse);
+
       const content = await contentResponse.text();
 
       // Return both the file metadata and content
